@@ -1,0 +1,20 @@
+<!--
+  Info.plist snippet for WorkoutChallenge.
+
+  Xcode 15+ generates the Info.plist from project settings by default. Add
+  these keys via Target > Info, OR paste the <key>/<string> pairs into the
+  raw Info.plist file if your project uses one.
+-->
+<dict>
+    <!-- HealthKit usage strings. These MUST be present or the app will crash
+         the first time HealthKit authorization is requested. -->
+    <key>NSHealthShareUsageDescription</key>
+    <string>WorkoutChallenge reads your workouts from Apple Health so you can see existing activity alongside your 90-day challenge.</string>
+
+    <key>NSHealthUpdateUsageDescription</key>
+    <string>WorkoutChallenge saves workouts you log in the app to Apple Health so they show up in your Activity rings.</string>
+
+    <!-- CloudKit requires a usage string only if using CloudKit Sharing. Not
+         required for private database sync, which is what SwiftData uses by
+         default. -->
+</dict>

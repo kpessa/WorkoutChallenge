@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- HealthKit: required to read/write HKWorkout samples.
+	     `com.apple.developer.healthkit.access` is intentionally an empty array
+	     — that grants access to all standard HealthKit data classes (workouts,
+	     etc). Add specific entries (e.g. clinical-records) only if needed. -->
+	<key>com.apple.developer.healthkit</key>
+	<true/>
+	<key>com.apple.developer.healthkit.access</key>
+	<array/>
+
+	<!-- iCloud / CloudKit: SwiftData syncs to this container's private DB.
+	     The container must exist in the Apple Developer portal (or be auto-
+	     created by Xcode when you toggle iCloud > CloudKit in Signing &
+	     Capabilities). Convention is `iCloud.<bundle-id>`. -->
+	<key>aps-environment</key>
+	<string>development</string>
+	<key>com.apple.developer.icloud-container-identifiers</key>
+	<array>
+		<string>iCloud.kpessa.WorkoutChallenge</string>
+	</array>
+	<key>com.apple.developer.icloud-services</key>
+	<array>
+		<string>CloudKit</string>
+	</array>
+</dict>
+</plist>
