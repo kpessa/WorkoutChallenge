@@ -47,12 +47,12 @@ final class CloudKitStatusService: ObservableObject {
 
         var displayText: String {
             switch self {
-            case .unknown:                 return "Checking…"
-            case .available:               return "Connected"
-            case .noAccount:               return "Not signed in"
-            case .restricted:              return "Restricted"
-            case .temporarilyUnavailable:  return "Unavailable"
-            case .couldNotDetermine:       return "Unknown"
+            case .unknown:                 return String(localized: "Checking…", comment: "CloudKit account status")
+            case .available:               return String(localized: "Connected", comment: "CloudKit account status")
+            case .noAccount:               return String(localized: "Not signed in", comment: "CloudKit account status")
+            case .restricted:              return String(localized: "Restricted", comment: "CloudKit account status")
+            case .temporarilyUnavailable:  return String(localized: "Unavailable", comment: "CloudKit account status")
+            case .couldNotDetermine:       return String(localized: "Unknown", comment: "CloudKit account status")
             }
         }
 
@@ -63,13 +63,17 @@ final class CloudKitStatusService: ObservableObject {
             case .unknown:
                 return nil
             case .available:
-                return "Your workouts sync to iCloud automatically."
+                return String(localized: "Your workouts sync to iCloud automatically.",
+                              comment: "CloudKit detail — signed in")
             case .noAccount:
-                return "Sign into iCloud in Settings to back up and sync your workouts."
+                return String(localized: "Sign into iCloud in Settings to back up and sync your workouts.",
+                              comment: "CloudKit detail — no account")
             case .restricted:
-                return "iCloud is restricted on this device (parental controls or device management)."
+                return String(localized: "iCloud is restricted on this device (parental controls or device management).",
+                              comment: "CloudKit detail — restricted")
             case .temporarilyUnavailable:
-                return "iCloud is temporarily unavailable. Try again in a moment."
+                return String(localized: "iCloud is temporarily unavailable. Try again in a moment.",
+                              comment: "CloudKit detail — temporarily unavailable")
             case .couldNotDetermine(let message):
                 return message
             }

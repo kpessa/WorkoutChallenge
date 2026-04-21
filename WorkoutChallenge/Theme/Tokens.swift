@@ -21,6 +21,15 @@ extension Color {
     /// this collapses back to full Volt. Use Volt (not Ink) for fills,
     /// buttons, chart areas, and any element where dark text sits on top.
     static let accentInk      = Color("Colors/AccentInk")
+    /// Mid-darkened Volt (#8FB300 on light, full Volt on dark). Sits between
+    /// `accentVolt` and `accentInk`: lighter than Ink (so it still reads as
+    /// Volt family) but dark enough to give chart fills and outlines ~4:1
+    /// edge contrast on the chalk background. Use for:
+    ///   - Bar-chart / area fills that have no ink text over them
+    ///   - 1.5px outlines on Volt fills that need stronger edge definition
+    /// Do NOT use for small body text — fails 4.5:1 on Surface. Use accentInk
+    /// there instead.
+    static let accentVoltInk  = Color("Colors/AccentVoltInk")
     // Surfaces
     static let appBg          = Color("Colors/Bg")
     static let appSurface     = Color("Colors/Surface")
@@ -60,6 +69,7 @@ extension ShapeStyle where Self == Color {
     static var accentVolt: Color     { .accentVolt }
     static var accentNeon: Color     { .accentNeon }
     static var accentInk: Color      { .accentInk }
+    static var accentVoltInk: Color  { .accentVoltInk }
     // Surfaces
     static var appBg: Color          { .appBg }
     static var appSurface: Color     { .appSurface }

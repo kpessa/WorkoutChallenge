@@ -21,10 +21,26 @@ struct SettingsView: View {
     @EnvironmentObject private var healthKit: HealthKitService
     @EnvironmentObject private var cloudKitStatus: CloudKitStatusService
     @Query private var preferencesList: [UserPreferencesModel]
+    @Query private var challenges: [ChallengeModel]
 
-    @State private var showResetConfirm = false
+    // Debug-only seed feedback. A small status string the user sees under
+    // the "Seed sample workout (debug)" button so it's clear the action ran
+    // and a new HKWorkout landed in the Health store.
+    #if DEBUG
+    @State private var seedStatus: String?
+    @State private var seedInFlight = false
+    #endif
 
     private var prefs: UserPreferencesModel? { preferencesList.first }
+
+    /// The active/paused challenge. Only used now by
+    /// `importFromHealthKit()` so "Import from Apple Health" anchors its
+    /// lookback at day 1 of the live run; the Schedule + Progression-curve
+    /// sliders that used to live here moved to `ChallengeEditorView`, which
+    /// is pushed from the ChallengeSection cards.
+    private var activeChallenge: ChallengeModel? {
+        ChallengeService.currentChallenge(in: challenges)
+    }
 
     var body: some View {
         NavigationStack {
@@ -32,10 +48,10 @@ struct SettingsView: View {
                 eyebrow: "SETTINGS · DIAL IT IN",
                 title: "Your setup."
             ) {
+                ChallengeSection()
                 if let prefs {
                     appearanceSection(prefs: prefs)
-                    scheduleSection(prefs: prefs)
-                    curveSection(prefs: prefs)
+                    MaxHRSection(prefs: prefs)
                 }
                 workoutTypesSection
                 healthKitSection
@@ -44,14 +60,6 @@ struct SettingsView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
             .tint(.accentVolt)
-            .confirmationDialog(
-                "Reset to defaults?",
-                isPresented: $showResetConfirm,
-                titleVisibility: .visible
-            ) {
-                Button("Reset", role: .destructive, action: resetDefaults)
-                Button("Cancel", role: .cancel) { }
-            }
         }
     }
 
@@ -70,121 +78,6 @@ struct SettingsView: View {
             Text("“System” follows your device's light/dark setting. Syncs via iCloud.")
                 .font(AppFont.ui(12, weight: .medium))
                 .foregroundStyle(Color.textTertiary)
-        }
-    }
-
-    // MARK: - Schedule
-
-    @ViewBuilder
-    private func scheduleSection(prefs: UserPreferencesModel) -> some View {
-        AppSection(title: "Schedule") {
-            LabeledRow(label: "Start date") {
-                DatePicker(
-                    "",
-                    selection: Binding(
-                        get: { prefs.startDate },
-                        set: { prefs.startDate = $0 }
-                    ),
-                    displayedComponents: .date
-                )
-                .labelsHidden()
-                .tint(.accentVolt)
-            }
-
-            RowDivider()
-
-            LabeledRow(
-                label: "Days per week",
-                detail: "\(prefs.daysPerWeek) day\(prefs.daysPerWeek == 1 ? "" : "s")"
-            ) {
-                Stepper(
-                    "",
-                    value: Binding(
-                        get: { prefs.daysPerWeek },
-                        set: { prefs.daysPerWeek = max(1, min(7, $0)) }
-                    ),
-                    in: 1...7
-                )
-                .labelsHidden()
-                .tint(.accentVolt)
-            }
-
-            RowDivider()
-
-            VStack(alignment: .leading, spacing: Space.x2) {
-                Text("Week starts on")
-                    .font(AppFont.ui(15, weight: .semibold))
-                    .foregroundStyle(Color.textPrimary)
-                SegmentedControl(
-                    items: [(label: "Sunday", value: 1), (label: "Monday", value: 2)],
-                    selection: Binding(
-                        get: { prefs.firstWeekday },
-                        set: { prefs.firstWeekday = $0 }
-                    )
-                )
-            }
-        }
-    }
-
-    // MARK: - Curve
-
-    @ViewBuilder
-    private func curveSection(prefs: UserPreferencesModel) -> some View {
-        VStack(alignment: .leading, spacing: Space.x3) {
-            HStack {
-                Text("Progression curve").tsEyebrow().foregroundStyle(Color.textTertiary)
-                Spacer()
-            }
-
-            VStack(alignment: .leading, spacing: Space.x4) {
-                // Hero sigmoid preview — no milestones since these sliders
-                // aren't tied to a specific "today".
-                SigmoidCurve(progress: 0.6, showMilestones: false)
-                    .frame(height: 80)
-
-                SliderRow(
-                    title: "Min duration",
-                    value: Binding(
-                        get: { prefs.sigmoid.minDuration },
-                        set: { prefs.sigmoid.minDuration = $0 }
-                    ),
-                    range: 5...120, step: 5, unit: "min"
-                )
-                SliderRow(
-                    title: "Max duration",
-                    value: Binding(
-                        get: { prefs.sigmoid.maxDuration },
-                        set: { prefs.sigmoid.maxDuration = $0 }
-                    ),
-                    range: 10...240, step: 5, unit: "min"
-                )
-                SliderRow(
-                    title: "Midpoint (day)",
-                    value: Binding(
-                        get: { prefs.sigmoid.midpoint },
-                        set: { prefs.sigmoid.midpoint = $0 }
-                    ),
-                    range: 1...90, step: 1
-                )
-                SliderRow(
-                    title: "Steepness",
-                    value: Binding(
-                        get: { prefs.sigmoid.steepness },
-                        set: { prefs.sigmoid.steepness = $0 }
-                    ),
-                    range: 0.01...1.0, step: 0.01,
-                    format: .number.precision(.fractionLength(2))
-                )
-
-                SecondaryButton(title: "Reset to defaults") {
-                    showResetConfirm = true
-                }
-
-                Text("Sigmoid: min + (max − min) / (1 + exp(−steepness × (day − midpoint)))")
-                    .font(AppFont.mono(10, weight: .medium))
-                    .foregroundStyle(Color.textTertiary)
-            }
-            .appCard()
         }
     }
 
@@ -228,6 +121,28 @@ struct SettingsView: View {
                     SecondaryButton(title: "Import from Apple Health", icon: "arrow.down.to.line") {
                         Task { await importFromHealthKit() }
                     }
+
+                    #if DEBUG
+                    // Debug-only: seeds a fake 30-minute workout with HR /
+                    // calories / distance into the local HealthKit store so
+                    // Simulator runs can exercise the workout-detail UI
+                    // without a real Watch session. Release builds never
+                    // compile this block.
+                    RowDivider()
+                    SecondaryButton(
+                        title: seedInFlight ? "Seeding…" : "Seed sample workout (debug)",
+                        icon: "testtube.2"
+                    ) {
+                        Task { await seedDebugWorkout() }
+                    }
+                    .disabled(seedInFlight)
+                    if let seedStatus {
+                        Text(seedStatus)
+                            .font(AppFont.ui(12, weight: .medium))
+                            .foregroundStyle(Color.textTertiary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    #endif
                 }
             } else {
                 Text("HealthKit unavailable on this device.")
@@ -323,9 +238,14 @@ struct SettingsView: View {
 
     private var syncActivityText: String {
         switch cloudKitStatus.syncActivity {
-        case .idle:        return cloudKitStatus.lastSyncDate == nil ? "Waiting" : "Up to date"
-        case .syncing:     return "Syncing…"
-        case .failed:      return "Failed"
+        case .idle:
+            return cloudKitStatus.lastSyncDate == nil
+                ? String(localized: "Waiting", comment: "Sync-activity label before first sync")
+                : String(localized: "Up to date", comment: "Sync-activity label when idle")
+        case .syncing:
+            return String(localized: "Syncing…", comment: "Sync-activity label in progress")
+        case .failed:
+            return String(localized: "Failed", comment: "Sync-activity label failed")
         }
     }
 
@@ -339,10 +259,14 @@ struct SettingsView: View {
 
     private var iCloudFooterText: String {
         if case .failed(let message) = cloudKitStatus.syncActivity {
-            return "Last sync failed: \(message)"
+            return String.localizedStringWithFormat(
+                NSLocalizedString("Last sync failed: %@",
+                                   comment: "iCloud footer when last sync errored"),
+                message)
         }
         return cloudKitStatus.accountStatus.detailText
-            ?? "Your workouts sync to iCloud when you're signed in."
+            ?? String(localized: "Your workouts sync to iCloud when you're signed in.",
+                      comment: "Fallback iCloud footer")
     }
 
     // MARK: - About
@@ -357,19 +281,48 @@ struct SettingsView: View {
 
     // MARK: - Actions
 
-    private func resetDefaults() {
-        prefs?.sigmoid = .default
-        prefs?.daysPerWeek = 3
-        prefs?.startDate = Date()
-    }
-
     private func importFromHealthKit() async {
-        guard let start = prefs?.startDate else { return }
+        // Prefer the active challenge's start so "Import from Apple Health"
+        // on an in-progress challenge pulls from day 1 of *this* run
+        // rather than wherever prefs happens to sit. Falls back to prefs
+        // between challenges.
+        let start = activeChallenge?.startDate ?? prefs?.startDate
+        guard let start else { return }
+        // Explicit user tap — always re-auth if we haven't yet this run,
+        // and pass `minInterval: nil` so the import is never short-
+        // circuited by the foreground-sync cooldown. This keeps "I tapped
+        // the button" semantically equivalent to "force a fresh pull."
         if !healthKit.isAuthorized {
             await healthKit.requestAuthorization()
         }
-        await healthKit.importWorkouts(from: start, into: modelContext)
+        await healthKit.importSinceChallengeStart(
+            from: start,
+            into: modelContext,
+            minInterval: nil
+        )
     }
+
+    #if DEBUG
+    /// Fire the debug seed, then re-import so the new HKWorkout lands as a
+    /// `WorkoutModel` the user can tap on and see the enriched detail view.
+    private func seedDebugWorkout() async {
+        seedInFlight = true
+        seedStatus = nil
+        defer { seedInFlight = false }
+
+        let uuid = await healthKit.seedDebugWorkout()
+        guard uuid != nil else {
+            seedStatus = healthKit.lastError ?? "Seed failed."
+            return
+        }
+
+        // Import so it shows up in the app immediately. 7-day window is
+        // fine — the seed ended minutes ago.
+        let since = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
+        await healthKit.importWorkouts(from: since, into: modelContext)
+        seedStatus = "Seeded 30-min sample workout with HR series."
+    }
+    #endif
 }
 
 #Preview {

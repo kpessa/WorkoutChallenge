@@ -8,11 +8,13 @@
 //
 
 import SwiftUI
-import Charts
 import SwiftData
 
 struct AnalyticsView: View {
     @Query(sort: \WorkoutModel.date) private var workouts: [WorkoutModel]
+    @Query private var preferencesList: [UserPreferencesModel]
+
+    private var firstWeekday: Int { preferencesList.first?.firstWeekday ?? 1 }
 
     var body: some View {
         ScreenShell(
@@ -46,42 +48,86 @@ struct AnalyticsView: View {
         }
     }
 
-    // MARK: - Weekly chart
+    // MARK: - Weekly chart (Design Meld)
+
+    /// The current calendar week aligned to the user's firstWeekday pref.
+    /// Each bar is one day — Volt + 1.5pt ink border when logged, surface2
+    /// + 1pt border when empty. Callout (minute count) floats above the
+    /// tallest bar(s). Per the meld, this replaces the single solid-block
+    /// weekly-totals bar that used to live here.
+    private struct DayBar: Identifiable {
+        let date: Date
+        let minutes: Int
+        var id: Date { date }
+    }
+
+    private var currentWeekDays: [DayBar] {
+        var cal = Calendar.current
+        cal.firstWeekday = firstWeekday
+        let today = Date().startOfDay
+        guard let start = cal.dateInterval(of: .weekOfYear, for: today)?.start else {
+            return []
+        }
+        let days = (0..<7).map { start.addingDays($0) }
+        let totals: [Date: Int] = Dictionary(
+            grouping: workouts,
+            by: { $0.date.startOfDay }
+        ).mapValues { $0.reduce(0) { $0 + $1.duration } }
+        return days.map { DayBar(date: $0, minutes: totals[$0] ?? 0) }
+    }
 
     private var weeklyChart: some View {
-        let buckets = AnalyticsService.weeklyTotals(from: workouts)
+        let days = currentWeekDays
+        let peak = max(days.map(\.minutes).max() ?? 0, 1)
+        let hasData = days.contains { $0.minutes > 0 }
         return AppSection(title: "Weekly minutes") {
-            if buckets.isEmpty {
-                Text("Log a workout to see weekly totals.")
+            if !hasData {
+                Text("Log a workout to see this week's minutes.")
                     .font(AppFont.ui(13))
                     .foregroundStyle(Color.textSecondary)
             } else {
-                Chart(buckets) { b in
-                    BarMark(
-                        x: .value("Week", b.weekStart, unit: .weekOfYear),
-                        y: .value("Minutes", b.totalMinutes)
-                    )
-                    .foregroundStyle(Color.accentVolt)
-                }
-                .chartXAxis {
-                    AxisMarks { _ in
-                        AxisValueLabel(format: .dateTime.month(.abbreviated).day())
-                            .font(AppFont.mono(10))
-                            .foregroundStyle(Color.textSecondary)
-                        AxisGridLine().foregroundStyle(Color.appBorder)
+                HStack(alignment: .bottom, spacing: 6) {
+                    ForEach(days) { day in
+                        weekBar(day: day, peak: peak)
                     }
                 }
-                .chartYAxis {
-                    AxisMarks(position: .leading) { _ in
-                        AxisValueLabel()
-                            .font(AppFont.mono(10))
-                            .foregroundStyle(Color.textSecondary)
-                        AxisGridLine().foregroundStyle(Color.appBorder)
-                    }
-                }
-                .frame(height: 200)
+                .frame(height: 160)
             }
         }
+    }
+
+    @ViewBuilder
+    private func weekBar(day: DayBar, peak: Int) -> some View {
+        let isLogged = day.minutes > 0
+        let isPeak = day.minutes == peak && isLogged
+        VStack(spacing: 4) {
+            // Callout sits above the tallest bar; reserve the slot on other
+            // bars so they all share a baseline height.
+            Text(isPeak ? "\(day.minutes)m" : " ")
+                .font(AppFont.mono(9, weight: .bold))
+                .foregroundStyle(Color.textPrimary)
+                .monospacedDigit()
+            GeometryReader { geo in
+                let ratio = isLogged
+                    ? max(0.08, Double(day.minutes) / Double(peak))
+                    : 0.28
+                VStack {
+                    Spacer(minLength: 0)
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(isLogged ? Color.accentVolt : Color.appSurface2)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4)
+                                .stroke(isLogged ? Color.textPrimary : Color.appBorder,
+                                        lineWidth: isLogged ? 1.5 : 1)
+                        )
+                        .frame(height: geo.size.height * ratio)
+                }
+            }
+            Text(day.date, format: .dateTime.weekday(.narrow))
+                .font(AppFont.mono(10, weight: isPeak ? .bold : .medium))
+                .foregroundStyle(isPeak ? Color.textPrimary : Color.textSecondary)
+        }
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: - Recent list

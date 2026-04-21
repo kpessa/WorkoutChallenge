@@ -104,6 +104,7 @@
 			knownRegions = (
 				en,
 				Base,
+				es,
 			);
 			mainGroup = A9E742C62F942FEA004F3AC6;
 			minimizedProjectReferenceProxies = 1;
@@ -146,10 +147,15 @@
 				CODE_SIGN_ENTITLEMENTS = WorkoutChallenge/WorkoutChallenge.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = YES;
 				DEVELOPMENT_TEAM = ANCN2445Q9;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = WorkoutChallenge/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "90-Day Challenge KP";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "WorkoutChallenge reads your workouts from Apple Health so you can see existing activity alongside your 90-day challenge.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "WorkoutChallenge saves workouts you log in the app to Apple Health so they show up in your Activity rings.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -160,9 +166,11 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = kpessa.WorkoutChallenge;
+				PRODUCT_BUNDLE_IDENTIFIER = kpessa.WorkoutChallengeKP;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTS_MACCATALYST = YES;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -180,10 +188,15 @@
 				CODE_SIGN_ENTITLEMENTS = WorkoutChallenge/WorkoutChallenge.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = YES;
 				DEVELOPMENT_TEAM = ANCN2445Q9;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = WorkoutChallenge/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "90-Day Challenge KP";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "WorkoutChallenge reads your workouts from Apple Health so you can see existing activity alongside your 90-day challenge.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "WorkoutChallenge saves workouts you log in the app to Apple Health so they show up in your Activity rings.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -194,9 +207,11 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = kpessa.WorkoutChallenge;
+				PRODUCT_BUNDLE_IDENTIFIER = kpessa.WorkoutChallengeKP;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTS_MACCATALYST = YES;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;

@@ -8,7 +8,11 @@
 
 import Foundation
 
-struct SigmoidParams: Codable, Hashable {
+// `nonisolated` overrides the project-wide `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`
+// default. Without it, the synthesized Codable conformance is inferred as
+// main-actor-isolated, which Swift then refuses to use from the nonisolated
+// contexts SwiftData (and JSONEncoder in general) call encoding from.
+nonisolated struct SigmoidParams: Codable, Hashable, Sendable {
     /// How sharply the curve rises. Larger values = steeper transition.
     /// Web default: 0.1
     var steepness: Double

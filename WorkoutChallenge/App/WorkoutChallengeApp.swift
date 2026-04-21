@@ -23,6 +23,13 @@ struct WorkoutChallengeApp: App {
     // app restarts. Default is `.system` — follow whatever the device is set to.
     @AppStorage(ThemePreference.storageKey) private var themeRaw: String = ThemePreference.system.rawValue
 
+    /// First-run gate. Onboarding writes this to `true` on its final screen
+    /// and we flip back to `RootView`. Defaulting to `false` means existing
+    /// installs (pre-onboarding-feature) will also run onboarding once on
+    /// their next launch — acceptable because it seeds model state our
+    /// science-backed flow assumes (activities, cadence, pledge).
+    @AppStorage(OnboardingKey.completed) private var onboardingCompleted: Bool = false
+
     private var theme: ThemePreference {
         ThemePreference(rawValue: themeRaw) ?? .system
     }
@@ -39,10 +46,16 @@ struct WorkoutChallengeApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .environmentObject(healthKit)
-                .environmentObject(cloudKitStatus)
-                .preferredColorScheme(theme.colorScheme)
+            Group {
+                if onboardingCompleted {
+                    RootView()
+                } else {
+                    OnboardingView()
+                }
+            }
+            .environmentObject(healthKit)
+            .environmentObject(cloudKitStatus)
+            .preferredColorScheme(theme.colorScheme)
         }
         .modelContainer(modelContainer)
     }

@@ -2,25 +2,13 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- HealthKit usage strings. iOS shows these to the user in the HealthKit
-	     authorization prompt. They MUST be present or the app will crash the
-	     first time `requestAuthorization` runs. -->
-	<key>NSHealthShareUsageDescription</key>
-	<string>WorkoutChallenge reads your workouts from Apple Health so you can see existing activity alongside your 90-day challenge.</string>
-	<key>NSHealthUpdateUsageDescription</key>
-	<string>WorkoutChallenge saves workouts you log in the app to Apple Health so they show up in your Activity rings.</string>
-
-	<!-- Needed once CloudKit sync is re-enabled (see Persistence.swift). Safe
-	     to leave in place while CloudKit is disabled. -->
-	<key>UIBackgroundModes</key>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleLocalizations</key>
 	<array>
-		<string>remote-notification</string>
+		<string>en</string>
+		<string>es</string>
 	</array>
-
-	<!-- Custom fonts bundled under WorkoutChallenge/Fonts/. These are loaded
-	     by the design system's AppFont (see Theme/Typography.swift). Names
-	     here are filenames, not PostScript names — Info.plist looks up the
-	     file in the app bundle, iOS reads the PostScript name from the TTF. -->
 	<key>UIAppFonts</key>
 	<array>
 		<string>ArchivoBlack-Regular.ttf</string>
@@ -30,6 +18,10 @@
 		<string>Inter-Bold.ttf</string>
 		<string>JetBrainsMono-Medium.ttf</string>
 		<string>JetBrainsMono-Bold.ttf</string>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
 	</array>
 </dict>
 </plist>

@@ -95,9 +95,15 @@ enum AnalyticsService {
     /// Per-day breakdown over `range`, grouped by workout type, with a
     /// proposed-duration entry for any scheduled day that has no logged
     /// workouts. Used by the Progress Bars chart.
+    ///
+    /// `config` is the resolved active-challenge configuration (or the
+    /// prefs fallback between challenges) — see
+    /// `ChallengeService.activeConfig(...)`. Pass nil on the very first
+    /// launch before prefs/challenge rows exist; in that case the
+    /// function returns bars only, no proposed outlines.
     static func dailyBreakdown(
         workouts: [WorkoutModel],
-        preferences: UserPreferencesModel?,
+        config: ChallengeService.ActiveConfig?,
         in range: ClosedRange<Date>
     ) -> DailyBreakdown {
         let rangeStart = range.lowerBound.startOfDay
@@ -123,20 +129,29 @@ enum AnalyticsService {
         .sorted { ($0.date, $0.typeName) < ($1.date, $1.typeName) }
 
         var proposed: [DailyProposed] = []
-        if let prefs = preferences {
+        if let config {
+            // Route through `WeeklyScheduleService` so the dashed outlines
+            // on the bar graph match the proposed rows in the Calendar's
+            // Schedule list. Both views now front-load remaining workouts
+            // to the earliest still-open day in the week (e.g. if Sun + Mon
+            // are logged and the week target is 3, the 3rd proposed day is
+            // Tue — not Wed or Fri).
             let schedule = SigmoidalService.generateSchedule(
-                startDate: prefs.startDate,
-                daysPerWeek: prefs.daysPerWeek,
+                startDate: config.startDate,
+                daysPerWeek: config.daysPerWeek,
                 totalDays: 200
             )
-            for day in schedule {
-                let d = day.date.startOfDay
+            let proposedPairs = WeeklyScheduleService.proposedDates(
+                startDate: config.startDate,
+                sigmoid: config.sigmoid,
+                firstWeekday: config.firstWeekday,
+                workouts: workouts,
+                schedule: schedule
+            )
+            for p in proposedPairs {
+                let d = p.date.startOfDay
                 guard d >= rangeStart && d <= rangeEnd else { continue }
-                if (dailyTotal[d] ?? 0) > 0 { continue }
-                let target = SigmoidalService.targetDuration(
-                    for: d, startDate: prefs.startDate, params: prefs.sigmoid
-                )
-                proposed.append(DailyProposed(date: d, minutes: Int(target.rounded())))
+                proposed.append(DailyProposed(date: d, minutes: p.minutes))
             }
         }
 

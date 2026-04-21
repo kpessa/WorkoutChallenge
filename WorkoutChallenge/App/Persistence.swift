@@ -18,7 +18,8 @@ enum Persistence {
         let schema = Schema([
             UserPreferencesModel.self,
             WorkoutTypeModel.self,
-            WorkoutModel.self
+            WorkoutModel.self,
+            ChallengeModel.self
         ])
 
         // CloudKit sync to the user's private database. `.automatic` reads the
@@ -39,7 +40,8 @@ enum Persistence {
         let schema = Schema([
             UserPreferencesModel.self,
             WorkoutTypeModel.self,
-            WorkoutModel.self
+            WorkoutModel.self,
+            ChallengeModel.self
         ])
         let config = ModelConfiguration(
             schema: schema,

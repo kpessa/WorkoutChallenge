@@ -26,4 +26,15 @@ extension Date {
     func addingDays(_ days: Int) -> Date {
         Calendar.current.date(byAdding: .day, value: days, to: self) ?? self
     }
+
+    /// `self` truncated to the start of the enclosing minute (seconds =
+    /// nanoseconds = 0). Used by the HealthKit import dedupe: workouts
+    /// stored locally are persisted at minute precision, but HK samples
+    /// carry sub-second precision, so a minute-level truncation is the
+    /// common grain we compare against.
+    var truncatedToMinute: Date {
+        let cal = Calendar.current
+        let comps = cal.dateComponents([.year, .month, .day, .hour, .minute], from: self)
+        return cal.date(from: comps) ?? self
+    }
 }

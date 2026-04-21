@@ -85,7 +85,7 @@ struct WorkoutTypeManagerView: View {
                     .overlay(Circle().stroke(Color.appBorder, lineWidth: 1))
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Back")
+            .accessibilityLabel(Text("Back"))
 
             Spacer()
 
@@ -105,7 +105,7 @@ struct WorkoutTypeManagerView: View {
                     .background(Color.accentVolt, in: Circle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Add type")
+            .accessibilityLabel(Text("Add type"))
         }
         .padding(.horizontal, Space.x4)
         .padding(.top, Space.x3)
@@ -195,83 +195,7 @@ struct WorkoutTypeManagerView: View {
 }
 
 // MARK: - Edit sheet
-
-/// Shared sheet used for both "new type" and "edit existing type".
-private struct EditTypeSheet: View {
-    enum Mode {
-        case create
-        case edit(WorkoutTypeModel)
-    }
-    let mode: Mode
-    let onSave: (String, Color) -> Void
-    let onCancel: () -> Void
-
-    @State private var name: String = ""
-    @State private var color: Color = .green
-    @FocusState private var nameFocused: Bool
-
-    private var title: String {
-        switch mode {
-        case .create: return "New type"
-        case .edit:   return "Edit type"
-        }
-    }
-
-    private var canSave: Bool {
-        !name.trimmingCharacters(in: .whitespaces).isEmpty
-    }
-
-    var body: some View {
-        ZStack {
-            Color.appBg.ignoresSafeArea()
-            VStack(spacing: 0) {
-                SheetHeader(
-                    title: title,
-                    onCancel: onCancel,
-                    confirmLabel: "Save",
-                    confirmDisabled: !canSave,
-                    onConfirm: {
-                        onSave(name.trimmingCharacters(in: .whitespaces), color)
-                    }
-                )
-
-                ScrollView {
-                    VStack(alignment: .leading, spacing: Space.x5) {
-                        AppSection(title: "Name") {
-                            TextField("e.g. Rollerblading", text: $name)
-                                .focused($nameFocused)
-                                .font(AppFont.ui(16, weight: .semibold))
-                                .foregroundStyle(Color.textPrimary)
-                                .padding(.vertical, Space.x2)
-                        }
-
-                        AppSection(title: "Color") {
-                            HStack(spacing: Space.x3) {
-                                Circle()
-                                    .fill(color)
-                                    .frame(width: 32, height: 32)
-                                    .overlay(Circle().stroke(Color.appBorder, lineWidth: 1))
-                                ColorPicker("", selection: $color, supportsOpacity: false)
-                                    .labelsHidden()
-                                Text("Pick a color")
-                                    .font(AppFont.ui(14, weight: .medium))
-                                    .foregroundStyle(Color.textSecondary)
-                                Spacer()
-                            }
-                        }
-                    }
-                    .padding(.horizontal, Space.x5)
-                    .padding(.top, Space.x3)
-                    .padding(.bottom, Space.x10)
-                }
-            }
-        }
-        .task {
-            if case .edit(let t) = mode {
-                name = t.name
-                color = t.color
-            }
-            nameFocused = true
-        }
-    }
-}
+//
+// `EditTypeSheet` was extracted to its own file (Views/WorkoutTypes/EditTypeSheet.swift)
+// on 2026-04-20 so LogWorkoutSheet's inline "+ New type" chip could reuse it
+// without duplicating the create/edit form.

@@ -48,18 +48,44 @@ withAnimation(Motion.base) { isExpanded.toggle() }
 |------------------|------------|------------|-------------------------------------|
 | `accentVolt`     | `#CCFF00`  | `#CCFF00`  | Primary accent, highlights, tint    |
 | `accentNeon`     | `#39FF14`  | `#39FF14`  | Secondary accent (dark mode only)   |
+| `accentInk`      | `#526600`  | `#CCFF00`  | Volt *as foreground* on light (text, icons) |
+| `accentVoltInk`  | `#729000`  | `#CCFF00`  | Volt *as fill* where edge contrast matters (bars, outlines) |
 | `appBg`          | `#E8EAE4`  | `#000000`  | Screen background                   |
 | `appSurface`     | `#F3F5EF`  | `#0C0D0C`  | Card, sheet surface                 |
 | `appSurface2`    | `#DADDD4`  | `#15171A`  | Raised card                         |
-| `appSurface3`    | `#C9CDC2`  | `#1E2125`  | Input chip                          |
+| `appSurface3`    | `#C9CDC2`  | `#1E2125`  | Input chip, slider unfilled track   |
 | `appBorder`      | `#BFC3B8`  | `#23262B`  | Card + input stroke                 |
 | `textPrimary`    | `#0A0B0A`  | `#F3F5F2`  | Headlines, body                     |
-| `textSecondary`  | `#3F4540`  | `#A7ADA4`  | Meta, hints                         |
-| `textTertiary`   | `#7A817A`  | `#6E7570`  | Disabled, decoration                |
+| `textSecondary`  | `#3F4540`  | `#A7ADA4`  | Meta, hints, inactive tab icons     |
+| `textTertiary`   | `#5D6359`  | `#6E7570`  | Disabled, decoration                |
 | `danger`         | `#EF4444`  | `#EF4444`  | Destructive                         |
 | `warn`           | `#F59E0B`  | `#F59E0B`  | Warning                             |
 
 Light mode uses Volt as the only accent. Dark mode optionally themes with Neon Green.
+
+## Volt is a fill, never a foreground on light
+
+Volt (`#CCFF00`) is a highlighter yellow-green. Against the chalk background it measures ~1.07:1 contrast — well below WCAG's 3:1 for non-text UI, let alone the 4.5:1 needed for small text. So the palette has three Volt-family tokens, and each has a dedicated role:
+
+- **`accentVolt`** — fills, chips, pill buttons, progress bars, solid chart areas, `.tint()`, and any surface where dark ink text sits *on top*. Volt as a background + ink as a foreground is ~14:1 — that's fine.
+- **`accentInk`** — small Volt-family *text and icons on a light surface*: eyebrow labels (`.tsEyebrow()`), stat numerals with `accent: true`, status icons, the Bars tab label. ~5.87:1 on Surface.
+- **`accentVoltInk`** — Volt-family *fills that have no ink overlay* (bar chart marks, mid-weight outlines) and need ~3–4:1 edge contrast against the chalk background. Also a reasonable 1.5px stroke color on solid Volt fills when a pure-ink stroke feels too heavy.
+
+All three collapse back to full `accentVolt` in dark mode, so the neon signature is preserved where it reads well (dark fields).
+
+Rule of thumb: if dark ink sits **on** the Volt, use `accentVolt`. If the Volt **is** the ink (text/icon), use `accentInk`. If the Volt is a fill/outline with no text over it and needs edge definition on light mode, use `accentVoltInk`.
+
+## Accessibility patch (2026-04-19)
+
+Applied after a design review flagged contrast issues in the first visual build. Changes:
+
+- Added `accentVoltInk` (see above) for chart fills and light-mode outlines. The review proposed `#8FB300` but that measures 2.22:1 on Surface — below the 3:1 non-text UI threshold the review cited. The committed value `#729000` measures 3.35:1 on Surface, which passes with a small margin while staying recognisably Volt-family (slightly darker olive-green).
+- Bumped `textTertiary` light from `#7A817A` → `#5D6359` to hit 4.5:1 on Surface.
+- Tab bar selected state uses `accentInk` (not `accentVolt`) so "Bars" reads on the light tab bar.
+- 90-day grid's `proposed` cells use `accentInk` for their dashed outline and day number.
+- Analytics weekly bars use `accentVoltInk` so bar edges have real definition against Surface.
+- `SigmoidCurve` is now colorScheme-aware — ink stroke + Volt fill on light; Volt stroke + Volt fill on dark. (The Volt fill under the curve is the data weight; the ink stroke carries the shape.)
+- `UISlider.maximumTrackTintColor` is wired to `appSurface3` so the Volt filled portion of sigmoid-parameter sliders has separation from the rest of the track.
 
 ## Where the tokens show up
 

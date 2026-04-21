@@ -35,21 +35,66 @@ final class UserPreferencesModel {
     /// CloudKit alongside the rest of the user's preferences.
     var themeRaw: String = ThemePreference.system.rawValue
 
+    // MARK: - Max heart rate
+
+    /// Strategy used to resolve Max HR. Stored as the raw string of
+    /// `MaxHRMethod` so new cases don't require a migration. Default is
+    /// `.tanaka` — a reasonable middle-ground when we don't yet know the
+    /// user's age or have observed HR data.
+    var maxHRMethodRaw: String = MaxHRMethod.tanaka.rawValue
+
+    /// User's age for MHR formulas. 0 means "unset — derive from HealthKit
+    /// birthdate when possible". Storing the number (rather than a birthdate)
+    /// avoids a sensitive-PII field syncing via CloudKit.
+    var maxHRAgeOverride: Int = 0
+
+    /// Manually-specified MHR in BPM. Only used when `maxHRMethodRaw ==
+    /// MaxHRMethod.manual.rawValue`. 0 means "unset".
+    var maxHRManualBPM: Int = 0
+
+    /// Cached highest HR observed in Apple Health. Refreshed on demand by
+    /// `MaxHRService` so we don't re-query HealthKit on every workout open.
+    /// 0 means "not computed yet" — treat as unknown.
+    var observedMaxHRBPM: Int = 0
+
+    /// When `observedMaxHRBPM` was last refreshed. Nil = never.
+    var observedMaxHRUpdatedAt: Date?
+
     init(
         startDate: Date = Date(),
         daysPerWeek: Int = 3,
         firstWeekday: Int = 1,
         sigmoid: SigmoidParams = .default,
-        themeRaw: String = ThemePreference.system.rawValue
+        themeRaw: String = ThemePreference.system.rawValue,
+        maxHRMethodRaw: String = MaxHRMethod.tanaka.rawValue,
+        maxHRAgeOverride: Int = 0,
+        maxHRManualBPM: Int = 0,
+        observedMaxHRBPM: Int = 0,
+        observedMaxHRUpdatedAt: Date? = nil
     ) {
         self.startDate = startDate
         self.daysPerWeek = daysPerWeek
         self.firstWeekday = firstWeekday
         self.sigmoid = sigmoid
         self.themeRaw = themeRaw
+        self.maxHRMethodRaw = maxHRMethodRaw
+        self.maxHRAgeOverride = maxHRAgeOverride
+        self.maxHRManualBPM = maxHRManualBPM
+        self.observedMaxHRBPM = observedMaxHRBPM
+        self.observedMaxHRUpdatedAt = observedMaxHRUpdatedAt
     }
 
     static func makeDefault() -> UserPreferencesModel {
         UserPreferencesModel()
+    }
+}
+
+extension UserPreferencesModel {
+    /// Typed accessor for the persisted max-HR method. Falls back to
+    /// `.tanaka` if the stored raw value doesn't decode (e.g. an older row
+    /// from before this field existed).
+    var maxHRMethod: MaxHRMethod {
+        get { MaxHRMethod(rawValue: maxHRMethodRaw) ?? .tanaka }
+        set { maxHRMethodRaw = newValue.rawValue }
     }
 }
