@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.kurtpessa.workoutchallenge.restart</string>
+
+    <!--
+        Watcher agent. Wakes up when .restart-trigger's mtime changes, runs
+        restart.sh (which builds the server fresh and kickstarts the .server
+        agent). No KeepAlive / no RunAtLoad — we only fire on the trigger.
+    -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/kurtpessa/code/WorkoutChallenge/scripts/restart.sh</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/kurtpessa/code/WorkoutChallenge</string>
+
+    <key>WatchPaths</key>
+    <array>
+        <string>/Users/kurtpessa/code/WorkoutChallenge/.restart-trigger</string>
+    </array>
+
+    <key>ThrottleInterval</key>
+    <integer>5</integer>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/kurtpessa/Library/Logs/WorkoutChallengeServer/restart.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/kurtpessa/Library/Logs/WorkoutChallengeServer/restart.log</string>
+</dict>
+</plist>

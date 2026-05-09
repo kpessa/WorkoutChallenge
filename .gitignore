@@ -1,0 +1,52 @@
+# --------------------------------------------------------------------
+# Secrets — NEVER commit. Holds developer-baked API keys for the coach
+# pipeline (Anthropic, ElevenLabs, Gemini). The Settings UI is the
+# fallback path if this file is missing. See WorkoutChallenge/Secrets.swift
+# header for the lookup precedence.
+# --------------------------------------------------------------------
+WorkoutChallenge/Secrets.swift
+
+# --------------------------------------------------------------------
+# Xcode
+# --------------------------------------------------------------------
+build/
+DerivedData/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+
+# Xcode user-specific settings (window state, breakpoints, schemes)
+xcuserdata/
+*.xcuserstate
+*.xcuserdatad/
+
+# --------------------------------------------------------------------
+# Swift / macOS
+# --------------------------------------------------------------------
+.DS_Store
+*.swp
+*.swo
+.swiftpm/
+Package.resolved
+
+# --------------------------------------------------------------------
+# Editor leftovers
+# --------------------------------------------------------------------
+.vscode/
+.idea/
+*.iml
+
+# --------------------------------------------------------------------
+# Server (Vapor) — build outputs and the restart trigger file. Trigger
+# is touched to bounce the LaunchAgent; mtime is the signal, contents
+# don't matter and shouldn't be versioned.
+# --------------------------------------------------------------------
+Server/.build/
+Server/.swiftpm/
+Server/Package.resolved
+.restart-trigger
+.llm-lint/
+*.bak
+*.prevolt
+.trash/
