@@ -18,6 +18,7 @@
 //
 
 import SwiftUI
+import Combine
 import Charts
 import SwiftData
 
@@ -26,12 +27,36 @@ struct ProgressChartView: View {
     @Query private var challenges: [ChallengeModel]
     @Query(sort: \WorkoutModel.date) private var workouts: [WorkoutModel]
 
+    @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var healthKit: HealthKitService
+
+    /// View-scoped loader for the Progress coach card. Owns its own task
+    /// so cancel-on-disappear is clean. Same lifecycle pattern as
+    /// `CoachFeedbackLoader` in `LogWorkoutSheet`.
+    @State private var coachLoader = ProgressCoachLoader()
+
+    /// Audio player for the coach narration. Held at this level so
+    /// playback survives child re-renders. Stopped explicitly on the
+    /// `onDisappear` so the user doesn't carry audio out of the tab.
+    @State private var coachAudioPlayer = CoachAudioPlayer()
+
     private var prefs: UserPreferencesModel? { preferencesList.first }
 
     /// Resolved schedule config — active challenge if one exists, else
     /// prefs. See `ChallengeService.activeConfig(...)`.
     private var activeConfig: ChallengeService.ActiveConfig? {
         ChallengeService.activeConfig(challenges: challenges, prefs: prefs)
+    }
+
+    /// Reload key for the coach loader. Bumps when:
+    ///   • the active config changes (new challenge / new sigmoid)
+    ///   • the workout count changes (a fresh log invalidates the day's
+    ///     fingerprint, even if the persisted insight row hasn't been
+    ///     touched yet — the loader will recompute and decide whether to
+    ///     re-narrate based on the live fingerprint vs. the cached one)
+    private var coachReloadKey: String {
+        let startKey = activeConfig?.startDate.timeIntervalSince1970 ?? 0
+        return "\(startKey)-\(workouts.count)"
     }
 
     var body: some View {
@@ -43,12 +68,49 @@ struct ProgressChartView: View {
                     title: "Your curve."
                 ) {
                     heroCard(config: config, currentDay: currentDay)
-                    FitnessTrendCard(
+                    // Slot the coach card BETWEEN the hero and the
+                    // fitness-trend card. The teach-then-comment voice
+                    // sits next to the metric it's most likely to
+                    // explain — CTL on the trend card just below.
+                    ProgressCoachCard(
+                        state: coachLoader.state,
+                        audioPlayer: coachAudioPlayer
+                    )
+                    FitnessCard(
+                        workouts: workouts,
+                        startDate: config.startDate,
+                        endDate: config.startDate.addingDays(89)
+                    )
+                    PhysiologyCard(
+                        startDate: config.startDate,
+                        endDate: config.startDate.addingDays(89)
+                    )
+                    AdaptationsCard(
                         workouts: workouts,
                         startDate: config.startDate,
                         endDate: config.startDate.addingDays(89)
                     )
                     lunarTimelineCard(config: config, currentDay: currentDay)
+                }
+                .task(id: coachReloadKey) {
+                    // Fire the coach load on appear and whenever the
+                    // reload key changes. Idempotent against the cache:
+                    // when the fingerprint matches the persisted row,
+                    // no narrator/network call happens.
+                    guard let config = activeConfig else { return }
+                    coachLoader.load(
+                        allWorkouts: workouts,
+                        challenge: ChallengeService.currentChallenge(in: challenges),
+                        config: config,
+                        healthKit: healthKit,
+                        modelContext: modelContext,
+                        voiceID: prefs?.coachVoiceID ?? "",
+                        locale: .current
+                    )
+                }
+                .onDisappear {
+                    coachLoader.cancel()
+                    coachAudioPlayer.stop()
                 }
             } else {
                 ZStack {

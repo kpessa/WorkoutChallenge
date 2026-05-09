@@ -24,18 +24,30 @@
 //
 
 import SwiftUI
+import Combine
 import SwiftData
 
 struct LogWorkoutSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var healthKit: HealthKitService
+    /// Fires a confetti + haptic the first time a day's logged minutes
+    /// cross the sigmoid target. Called from `saveNew` / `saveEdit`
+    /// below. See `CelebrationService.swift`.
+    @EnvironmentObject private var celebration: CelebrationService
 
     @Query(sort: \WorkoutTypeModel.name) private var types: [WorkoutTypeModel]
     /// Preferences row drives the Max HR used for zone math when we're
     /// displaying per-workout details. Assumed to exist — `ensureDefaults`
     /// inserts the default row on first launch.
     @Query private var preferencesList: [UserPreferencesModel]
+    /// All logged workouts — fed to the coach context builder so it can
+    /// compute trailing-window aggregates (CTL, adherence, HR drift)
+    /// against the user's actual history.
+    @Query(sort: \WorkoutModel.date, order: .reverse) private var allWorkouts: [WorkoutModel]
+    /// All challenges — the builder picks the current one (if any) so day
+    /// numbering and the active-config snapshot match the rest of the app.
+    @Query private var allChallenges: [ChallengeModel]
 
     /// Distinguishes a brand-new entry from an existing one being edited.
     /// The two public inits map onto these cases.
@@ -81,6 +93,16 @@ struct LogWorkoutSheet: View {
     /// class — SwiftUI tracks its published `state` through the Observation
     /// framework directly.
     @State private var detailsLoader = WorkoutDetailsLoader()
+
+    /// Builds CoachContext + runs the deterministic Layer 1 pass for the
+    /// edit-mode workout. Same `@Observable`-class lifecycle as
+    /// `detailsLoader`; cancel-on-disappear handled below.
+    @State private var coachLoader = CoachFeedbackLoader()
+
+    /// Audio player for the cloned-voice narration. Shared across all
+    /// renders of `CoachFeedbackCard` in this sheet so playback state
+    /// survives transitions.
+    @State private var coachAudioPlayer = CoachAudioPlayer()
 
     init(date: Date, proposedDuration: Int? = nil) {
         self.mode = .create(date: date, proposedDuration: proposedDuration)
@@ -152,6 +174,17 @@ struct LogWorkoutSheet: View {
                         if healthKit.isAvailable {
                             healthKitCard
                         }
+                        // Calibrated coach feedback. Independent of HealthKit
+                        // — the deterministic rule pass speaks to milestones,
+                        // CTL trends, and adherence even without HR data, so
+                        // the card slots in alongside the details section
+                        // rather than inside its `.loaded` case.
+                        if isEditing {
+                            CoachFeedbackCard(
+                                state: coachLoader.state,
+                                audioPlayer: coachAudioPlayer
+                            )
+                        }
                         // Per-workout enrichment — only shown when editing
                         // an existing HealthKit-synced entry.
                         if isEditing {
@@ -176,8 +209,13 @@ struct LogWorkoutSheet: View {
             // after requestAuthorization so first-launch users see the
             // permission prompt before the loader silently returns empty.
             loadDetailsIfEditing()
+            loadCoachIfEditing()
         }
-        .onDisappear { detailsLoader.cancel() }
+        .onDisappear {
+            detailsLoader.cancel()
+            coachLoader.cancel()
+            coachAudioPlayer.stop()
+        }
         .confirmationDialog(
             "Delete this workout?",
             isPresented: $showDeleteConfirm,
@@ -489,7 +527,18 @@ struct LogWorkoutSheet: View {
             HeartRateCard(details: details)
             ExtraStatsCard(details: details)
             WorkoutRouteMap(locations: details.routeLocations)
+            if let hkUUID = editingHealthKitUUID {
+                VaultPushCard(healthKitUUID: hkUUID)
+            }
         }
+    }
+
+    /// HealthKit UUID of the workout being edited, if any. Drives the
+    /// VaultPushCard — manual-only entries don't have an HK sample to
+    /// mirror, so the card stays hidden in that case.
+    private var editingHealthKitUUID: UUID? {
+        guard case .edit(let workout) = mode else { return nil }
+        return workout.healthKitUUID
     }
 
     /// Kick off the details loader. Called from `.task` after we've had a
@@ -510,7 +559,52 @@ struct LogWorkoutSheet: View {
             // outside of tests/previews.
             return 190
         }()
-        detailsLoader.load(workout: workout, healthKit: healthKit, maxHR: maxHR)
+        // 0 = unset → zone math degenerates to %-of-max (legacy). Once
+        // the user fills in a value (Settings → Max heart rate or auto-
+        // fetched from HK), zones snap to HRR / Karvonen and align with
+        // the Apple Watch.
+        let restingHR = Double(prefs?.restingHRBPM ?? 0)
+        detailsLoader.load(
+            workout: workout,
+            healthKit: healthKit,
+            maxHR: maxHR,
+            restingHR: restingHR
+        )
+    }
+
+    /// Build CoachContext + run Layer 1 (deterministic) pass for the
+    /// edit-mode workout. Skipped on .create paths since there's no
+    /// just-saved workout yet and skipped when the prefs/active-config
+    /// substrate isn't ready (first-launch race).
+    private func loadCoachIfEditing() {
+        guard case .edit(let workout) = mode else {
+            coachLoader.cancel()
+            return
+        }
+        let prefs = preferencesList.first
+        guard let config = ChallengeService.activeConfig(
+            challenges: allChallenges,
+            prefs: prefs
+        ) else {
+            coachLoader.cancel()
+            return
+        }
+        let birthdate = healthKit.fetchBirthdateComponents()
+        let maxHR: Double? = prefs.map {
+            MaxHRService.resolve(preferences: $0, birthdate: birthdate)
+        }
+        let restingHR = Double(prefs?.restingHRBPM ?? 0)
+        coachLoader.load(
+            workout: workout,
+            allWorkouts: allWorkouts,
+            challenge: ChallengeService.currentChallenge(in: allChallenges),
+            config: config,
+            maxHR: maxHR,
+            restingHR: restingHR,
+            healthKit: healthKit,
+            modelContext: modelContext,
+            voiceID: prefs?.coachVoiceID ?? ""
+        )
     }
 
     private var deleteCard: some View {
@@ -556,6 +650,26 @@ struct LogWorkoutSheet: View {
         )
         modelContext.insert(model)
 
+        // Make the insert visible to the fetch inside `checkForCrossing`
+        // — without an explicit save the new row can still be in a pending
+        // state, and `loggedMin` would miss it on the very first save of
+        // the day that pushes over the threshold.
+        try? modelContext.save()
+
+        // If this log pushed today's total past the sigmoid target, fire
+        // the one-time celebration. No-ops if the day already crossed.
+        celebration.checkForCrossing(workoutDate: date, context: modelContext)
+
+        // Best-effort: if this date matches a scheduled workout day, mark the
+        // corresponding Reclaim task complete. Fire-and-forget — a Reclaim
+        // outage or missing token must not block the save.
+        Task {
+            await ReclaimSyncService.completeTaskForWorkout(
+                date: date,
+                modelContext: modelContext
+            )
+        }
+
         if syncToHealth && healthKit.isAvailable {
             Task {
                 let id = await healthKit.saveWorkout(
@@ -587,6 +701,17 @@ struct LogWorkoutSheet: View {
 
         workout.duration = duration
         workout.workoutType = selectedType
+
+        // Persist the duration change before checking thresholds — same
+        // reason as in `saveNew`: the fetch inside `checkForCrossing`
+        // needs to see the updated value.
+        try? modelContext.save()
+
+        // If bumping the duration of an existing workout pushed the day
+        // over the target for the first time, celebrate. Re-saves that
+        // don't cross the threshold (or that land on a day that already
+        // celebrated) no-op inside the service.
+        celebration.checkForCrossing(workoutDate: workout.date, context: modelContext)
 
         // Imported rows: edits are non-destructive by default. We write to
         // the local SwiftData row only — HealthKit is not touched, so the

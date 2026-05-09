@@ -2,16 +2,22 @@
 //  HeartRateZone.swift
 //  WorkoutChallenge
 //
-//  Standard 5-zone model keyed off percent of max heart rate (MHR). The
-//  exact boundaries vary across coaches (e.g. Joe Friel's zones, Karvonen
-//  HR-reserve zones) — we use the simple %-of-max convention because it
-//  matches what the Apple Watch + Fitness app show and because we don't
-//  reliably know resting HR.
+//  Standard 5-zone model. Zone boundaries are expressed as fractions of
+//  Heart Rate Reserve (HRR) — the Karvonen formula — to match what the
+//  Apple Watch shows in workout view. The boundary BPM for a zone is:
+//
+//      bpm = restingHR + pct·(maxHR − restingHR)
+//
+//  When restingHR == 0 (the unset default), this degenerates to the
+//  simpler `pct·maxHR` formula, so callers that don't yet know the user's
+//  resting HR keep getting the old %-of-max zones — no migration cliff.
+//  Once the user fills in resting HR (Settings → Max heart rate, or auto-
+//  fetched from Apple Health), zones snap to HRR and start agreeing with
+//  the Watch.
 //
 //  Zones are ordered by intensity; boundaries are inclusive on the low end
-//  and exclusive on the high end (so 150 bpm at MHR 200 → 75% → Zone 3).
-//  The top of Zone 5 is open (> 90% → Zone 5) so spikes above MHR still
-//  count.
+//  and exclusive on the high end. The top of Zone 5 is open (> 90% HRR →
+//  Zone 5) so spikes above MHR still count.
 //
 
 import Foundation
@@ -20,7 +26,7 @@ import SwiftUI
 struct HeartRateZone: Identifiable, Hashable {
     let index: Int            // 1...5
     let name: String          // "Recovery", "Endurance", …
-    let minPercent: Double    // 0.5 = 50% of MHR
+    let minPercent: Double    // 0.5 = 50% of HRR (or %-of-max when restingHR = 0)
     let maxPercent: Double    // upper bound, exclusive except for zone 5
     let color: Color          // plot + bar fill
     var id: Int { index }
@@ -58,25 +64,31 @@ struct HeartRateZone: Identifiable, Hashable {
 
     static let standard: [HeartRateZone] = [.z1, .z2, .z3, .z4, .z5]
 
-    /// Pick the zone a specific BPM value falls into given a user's MHR.
-    /// Values below Zone 1's floor are reported as Zone 1 (rather than a
-    /// sixth "below recovery" bucket) so the breakdown bars always add to
-    /// 100% when HR data exists.
-    static func zone(for bpm: Double, maxHR: Double) -> HeartRateZone {
+    /// Pick the zone a specific BPM value falls into. Uses the Karvonen
+    /// (HRR) formula when `restingHR > 0`, falling back to %-of-max when
+    /// it's 0 — the latter is the historical behavior, kept so users
+    /// without a resting-HR value don't experience a silent zone shift.
+    /// Values below Zone 1's floor are reported as Zone 1 so the
+    /// breakdown bars always add to 100% when HR data exists.
+    static func zone(for bpm: Double, maxHR: Double, restingHR: Double = 0) -> HeartRateZone {
         guard maxHR > 0 else { return .z1 }
-        let pct = bpm / maxHR
+        let reserve = max(0, maxHR - restingHR)
+        // pct = (bpm − rest) / reserve. When rest=0, this is bpm/maxHR.
+        let pct = reserve > 0 ? (bpm - restingHR) / reserve : bpm / maxHR
         // Walk zones descending so the open-ended top of Z5 is evaluated
-        // first (any bpm at or above 90% of MHR is Z5).
+        // first (any bpm at or above 90% HRR is Z5).
         for z in standard.reversed() {
             if pct >= z.minPercent { return z }
         }
         return .z1
     }
 
-    /// Range in BPM for this zone given a user's MHR. Useful for labels.
-    func bpmRange(maxHR: Double) -> ClosedRange<Int> {
-        let lo = Int((minPercent * maxHR).rounded())
-        let hi = Int((maxPercent * maxHR).rounded())
+    /// Range in BPM for this zone given the user's max + resting HR.
+    /// Default `restingHR: 0` collapses HRR to %-of-max (backward compat).
+    func bpmRange(maxHR: Double, restingHR: Double = 0) -> ClosedRange<Int> {
+        let reserve = max(0, maxHR - restingHR)
+        let lo = Int((restingHR + minPercent * reserve).rounded())
+        let hi = Int((restingHR + maxPercent * reserve).rounded())
         return lo...hi
     }
 
@@ -130,11 +142,14 @@ enum HeartRateAnalysis {
     /// Integration is "hold-until-next-sample": the HR reading at sample
     /// `i` is assumed to hold until sample `i+1`. The last sample extends
     /// up to `workoutEnd` so the chart and the bar tell the same story.
-    /// Zones are resolved via `HeartRateZone.zone(for:maxHR:)`, so samples
-    /// below Z1's floor count toward Z1 (intentional — see that function).
+    /// Zones are resolved via `HeartRateZone.zone(for:maxHR:restingHR:)`,
+    /// so samples below Z1's floor count toward Z1 (intentional — see
+    /// that function). `restingHR` defaults to 0 (= %-of-max math) for
+    /// callers that don't yet have it.
     static func breakdown(
         samples: [HealthKitService.HRSample],
         maxHR: Double,
+        restingHR: Double = 0,
         workoutEnd: Date? = nil
     ) -> ZoneBreakdown {
         var buckets = Dictionary(
@@ -150,7 +165,7 @@ enum HeartRateAnalysis {
             // Guard against wildly long gaps (>20 min) — treat them as
             // "paused" and don't attribute that time to a zone.
             let clamped = min(dt, 20 * 60)
-            let zone = HeartRateZone.zone(for: s.bpm, maxHR: maxHR)
+            let zone = HeartRateZone.zone(for: s.bpm, maxHR: maxHR, restingHR: restingHR)
             buckets[zone.index, default: 0] += clamped
             total += clamped
         }

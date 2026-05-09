@@ -9,6 +9,7 @@
 //
 
 import SwiftUI
+import Combine
 import SwiftData
 
 struct RootView: View {
@@ -25,6 +26,11 @@ struct RootView: View {
     // construct a fresh HealthKitService here — the shared instance owns
     // auth state, the in-flight import guard, and the opt-in flag.
     @EnvironmentObject private var healthKit: HealthKitService
+
+    // Confetti + success-haptic on threshold crossing. Paints a full-screen
+    // overlay on top of the TabView so it's visible from any tab when the
+    // user (or the HK import hook) crosses the day's target.
+    @EnvironmentObject private var celebration: CelebrationService
 
     // Load user preferences. We expect exactly one preferences row.
     @Query private var preferences: [UserPreferencesModel]
@@ -50,22 +56,38 @@ struct RootView: View {
     init() { Self.configureAppearance() }
 
     var body: some View {
-        TabView {
-            ProgressBarsView()
-                .tabItem { Label("Bars", systemImage: "chart.bar.xaxis") }
+        ZStack {
+            TabView {
+                ProgressBarsView()
+                    .tabItem { Label("Bars", systemImage: "chart.bar.xaxis") }
 
-            CalendarView()
-                .tabItem { Label("Calendar", systemImage: "calendar") }
+                CalendarView()
+                    .tabItem { Label("Calendar", systemImage: "calendar") }
 
-            ProgressChartView()
-                .tabItem { Label("Progress", systemImage: "chart.line.uptrend.xyaxis") }
+                ProgressChartView()
+                    .tabItem { Label("Progress", systemImage: "chart.line.uptrend.xyaxis") }
 
-            AnalyticsView()
-                .tabItem { Label("Analytics", systemImage: "chart.bar.fill") }
+                AnalyticsView()
+                    .tabItem { Label("Analytics", systemImage: "chart.bar.fill") }
 
-            SettingsView()
-                .tabItem { Label("Settings", systemImage: "gearshape") }
+                SettingsView()
+                    .tabItem { Label("Settings", systemImage: "gearshape") }
+            }
+
+            // Celebration overlay — confetti burst + congratulatory banner
+            // anchored near the top. Sits above the TabView so it's visible
+            // from any tab (and over a freshly-dismissed LogWorkoutSheet).
+            // `allowsHitTesting(false)` on the confetti so the user can
+            // continue tapping during the burst; the banner itself is
+            // non-interactive and auto-dismisses on a timer from the
+            // service.
+            if celebration.showCelebration {
+                CelebrationOverlay(date: celebration.celebratedDate ?? Date())
+                    .transition(.opacity)
+                    .allowsHitTesting(false)
+            }
         }
+        .animation(.easeInOut(duration: 0.25), value: celebration.showCelebration)
         // Use `accentInk` (not `accentVolt`) for the tab-bar tint — SwiftUI's
         // `.tint` drives the selected icon/label color, and Volt at ~1.07:1
         // on light Surface fails WCAG. accentInk darkens in light mode and
@@ -93,6 +115,21 @@ struct RootView: View {
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             Task { await autoImportFromHealth(minInterval: 60) }
+        }
+        // Celebration trigger for the HealthKit import pathway. `lastImportDate`
+        // flips every time any import finishes (auto-sync on foreground, cold
+        // launch, Settings → Import, pull-to-refresh), so observing it gives
+        // us a single hook that catches all four pathways. We check *today*
+        // because the common case is: user worked out on the watch, foregrounded
+        // the app, and expects a celebration if that session completed today's
+        // target. Backdated imports (e.g. a weeks-old backfill) won't fire —
+        // acceptable trade-off; the moment should feel tied to the present.
+        .onChange(of: healthKit.lastImportDate) { _, newValue in
+            guard newValue != nil else { return }
+            celebration.checkForCrossing(
+                workoutDate: Date(),
+                context: modelContext
+            )
         }
     }
 
@@ -340,4 +377,92 @@ struct RootView: View {
         .modelContainer(try! Persistence.makePreviewContainer())
         .environmentObject(HealthKitService())
         .environmentObject(CloudKitStatusService())
+        .environmentObject(CelebrationService())
+}
+
+// MARK: - Celebration overlay
+
+/// Visible layer painted on top of the TabView while
+/// `CelebrationService.showCelebration` is true. Composes the confetti
+/// particle view with a banner near the top of the screen that names the
+/// day that was just completed.
+///
+/// Kept private to RootView because the banner copy is tied to the app's
+/// onboarding / challenge-day vocabulary. If it grows in scope it can be
+/// promoted to `Views/Shared/`.
+private struct CelebrationOverlay: View {
+    let date: Date
+
+    /// Drives a subtle scale-in for the banner card so the overlay lands
+    /// with a little bounce instead of popping in rigid.
+    @State private var bannerScale: CGFloat = 0.85
+    @State private var bannerOpacity: Double = 0
+
+    var body: some View {
+        ZStack {
+            // Confetti covers the whole screen, drawn behind the banner.
+            ConfettiView()
+
+            VStack {
+                banner
+                    .padding(.top, 60)
+                Spacer()
+            }
+        }
+        .onAppear {
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.65)) {
+                bannerScale = 1.0
+                bannerOpacity = 1.0
+            }
+        }
+    }
+
+    /// The congratulatory card. Copy switches between "Day complete!" when
+    /// the crossed date is today and a dated variant for backdated logs —
+    /// that way someone who fills in yesterday's workout still gets a
+    /// confirming message that names which day crossed the line.
+    private var banner: some View {
+        let isToday = Calendar.current.isDateInToday(date)
+        let title = isToday
+            ? String(localized: "Day complete!", comment: "Celebration banner title")
+            : String(localized: "Target met!", comment: "Celebration banner for backdated logs")
+        let subtitle = isToday
+            ? String(localized: "You hit today's target. Nice work.",
+                     comment: "Celebration banner body")
+            : String(
+                format: String(localized: "%@ is now complete.",
+                               comment: "Celebration banner body with dated target"),
+                Self.shortDate(date)
+            )
+
+        return VStack(spacing: 6) {
+            Text("🎉")
+                .font(.system(size: 34))
+            Text(title)
+                .font(AppFont.ui(18, weight: .bold))
+                .foregroundStyle(Color.textPrimary)
+            Text(subtitle)
+                .font(AppFont.ui(13, weight: .medium))
+                .foregroundStyle(Color.textSecondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.horizontal, 22)
+        .padding(.vertical, 16)
+        .background(Color.appSurface, in: .rect(cornerRadius: Radius.card))
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.card)
+                .stroke(Color.accentVolt.opacity(0.55), lineWidth: 1.5)
+        )
+        .shadow(color: .black.opacity(0.25), radius: 14, x: 0, y: 4)
+        .padding(.horizontal, 28)
+        .scaleEffect(bannerScale)
+        .opacity(bannerOpacity)
+    }
+
+    private static func shortDate(_ date: Date) -> String {
+        let df = DateFormatter()
+        df.dateStyle = .medium
+        df.timeStyle = .none
+        return df.string(from: date)
+    }
 }

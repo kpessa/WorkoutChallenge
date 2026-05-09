@@ -60,6 +60,34 @@ final class UserPreferencesModel {
     /// When `observedMaxHRBPM` was last refreshed. Nil = never.
     var observedMaxHRUpdatedAt: Date?
 
+    /// Resting HR in BPM. Used by the HR-zone math (Karvonen / Heart-Rate
+    /// Reserve formula) to match the Apple Watch's zone calculation:
+    ///     target = rest + pct·(max − rest)
+    /// 0 means "unset" — the math degenerates to the older %-of-max
+    /// behavior (`pct·max`) so existing users see no change until they
+    /// fill this in. Refreshable from Apple Health (resting HR is posted
+    /// daily by the Watch); also editable manually.
+    var restingHRBPM: Int = 0
+
+    /// When `restingHRBPM` was last refreshed from Apple Health. Nil =
+    /// manually entered or never.
+    var restingHRUpdatedAt: Date?
+
+    // MARK: - Calibrated coach (voice tier)
+
+    /// ElevenLabs voice id for the calibrated-coach narration playback.
+    /// Defaults to Kurt's cloned voice (mMw2ULSqWjVQbyAWWFRM, captured
+    /// 2026-04-27). Empty string = "no audio, text-only coach card."
+    /// CloudKit-safe: defaults so existing rows pick up the clone on
+    /// first read after the schema migration.
+    var coachVoiceID: String = "mMw2ULSqWjVQbyAWWFRM"
+
+    /// When true, the workout-detail card auto-plays the narration on
+    /// first appearance. Default off — auto-play feels great in the demo
+    /// and overbearing by week three. The play button is always tappable
+    /// regardless of this setting.
+    var coachVoiceAutoplay: Bool = false
+
     init(
         startDate: Date = Date(),
         daysPerWeek: Int = 3,
@@ -70,7 +98,9 @@ final class UserPreferencesModel {
         maxHRAgeOverride: Int = 0,
         maxHRManualBPM: Int = 0,
         observedMaxHRBPM: Int = 0,
-        observedMaxHRUpdatedAt: Date? = nil
+        observedMaxHRUpdatedAt: Date? = nil,
+        coachVoiceID: String = "mMw2ULSqWjVQbyAWWFRM",
+        coachVoiceAutoplay: Bool = false
     ) {
         self.startDate = startDate
         self.daysPerWeek = daysPerWeek
@@ -82,6 +112,8 @@ final class UserPreferencesModel {
         self.maxHRManualBPM = maxHRManualBPM
         self.observedMaxHRBPM = observedMaxHRBPM
         self.observedMaxHRUpdatedAt = observedMaxHRUpdatedAt
+        self.coachVoiceID = coachVoiceID
+        self.coachVoiceAutoplay = coachVoiceAutoplay
     }
 
     static func makeDefault() -> UserPreferencesModel {

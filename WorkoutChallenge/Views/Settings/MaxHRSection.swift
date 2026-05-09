@@ -15,6 +15,7 @@
 //
 
 import SwiftUI
+import Combine
 import SwiftData
 import HealthKit
 
@@ -25,6 +26,7 @@ struct MaxHRSection: View {
     @State private var hkBirthdate: DateComponents?
     @State private var hkSex: HKBiologicalSex?
     @State private var refreshingObserved = false
+    @State private var refreshingResting = false
 
     /// Age we derive for formula-based methods. Override wins, else we
     /// compute from the HealthKit birthdate (when access is granted).
@@ -37,9 +39,11 @@ struct MaxHRSection: View {
     }
 
     var body: some View {
-        AppSection(title: "Max heart rate") {
+        AppSection(title: "Heart rate zones") {
             VStack(alignment: .leading, spacing: Space.x3) {
                 resolvedReadoutRow
+                RowDivider()
+                restingRow
                 RowDivider()
                 ageRow
                 RowDivider()
@@ -269,6 +273,74 @@ struct MaxHRSection: View {
             ) {
                 Task { await refreshObservedMax() }
             }
+        }
+    }
+
+    // MARK: - Resting HR
+
+    /// Resting HR drives the HRR/Karvonen formula used to bucket workout
+    /// HR samples into zones. When unset (0), zone math falls back to the
+    /// older %-of-max convention so existing users see no change. Once
+    /// set, zones align with the Apple Watch — the difference is large
+    /// for users with elevated resting HRs (the lower zone bounds drift
+    /// up by 20–30 BPM at typical resting values).
+    private var restingRow: some View {
+        VStack(alignment: .leading, spacing: Space.x2) {
+            HStack {
+                Text("Resting HR").font(AppFont.ui(15, weight: .semibold))
+                    .foregroundStyle(Color.textPrimary)
+                Spacer()
+                TextField("60", value: Binding(
+                    get: { prefs.restingHRBPM },
+                    set: {
+                        prefs.restingHRBPM = max(0, min(120, $0))
+                        // Manual edit clears the auto-fetch timestamp so
+                        // the "refreshed N days ago" line doesn't lie.
+                        prefs.restingHRUpdatedAt = nil
+                    }
+                ), format: .number)
+                .keyboardType(.numberPad)
+                .multilineTextAlignment(.trailing)
+                .font(AppFont.mono(15, weight: .bold))
+                .foregroundStyle(Color.accentInk)
+                .frame(width: 64)
+                Text("BPM").font(AppFont.ui(13, weight: .semibold))
+                    .foregroundStyle(Color.textSecondary)
+            }
+            if prefs.restingHRBPM == 0 {
+                Text("Set this to enable Karvonen / HRR zones (matches the Apple Watch). Without it, zones use the simpler %-of-max convention.")
+                    .font(AppFont.ui(11, weight: .medium))
+                    .foregroundStyle(Color.textTertiary)
+            } else if let updated = prefs.restingHRUpdatedAt {
+                Text("Auto-fetched from Apple Health \(updated, format: .relative(presentation: .named)).")
+                    .font(AppFont.ui(11, weight: .medium))
+                    .foregroundStyle(Color.textTertiary)
+            } else {
+                Text("Manually set. Karvonen / HRR zones active.")
+                    .font(AppFont.ui(11, weight: .medium))
+                    .foregroundStyle(Color.textTertiary)
+            }
+            SecondaryButton(
+                title: refreshingResting ? "Fetching…" : "Fetch from Apple Health",
+                icon: "heart.text.square"
+            ) {
+                Task { await refreshRestingHR() }
+            }
+        }
+    }
+
+    @MainActor
+    private func refreshRestingHR() async {
+        guard !refreshingResting else { return }
+        refreshingResting = true
+        defer { refreshingResting = false }
+
+        if !healthKit.isAuthorized {
+            await healthKit.requestAuthorization()
+        }
+        if let result = await healthKit.fetchLatestRestingHR() {
+            prefs.restingHRBPM = Int(result.bpm.rounded())
+            prefs.restingHRUpdatedAt = result.date
         }
     }
 

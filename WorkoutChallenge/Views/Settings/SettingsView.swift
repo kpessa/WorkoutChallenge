@@ -14,6 +14,7 @@
 //
 
 import SwiftUI
+import Combine
 import SwiftData
 
 struct SettingsView: View {
@@ -55,7 +56,11 @@ struct SettingsView: View {
                 }
                 workoutTypesSection
                 healthKitSection
+                CoachSection()
+                ReclaimSection()
+                VaultSyncSection()
                 iCloudSyncSection
+                DataExportSection()
                 aboutSection
             }
             .toolbar(.hidden, for: .navigationBar)

@@ -33,12 +33,14 @@ struct HeartRateCard: View {
                     }
                     HeartRateZoneBar(
                         breakdown: details.zones,
-                        maxHR: details.maxHRUsed
+                        maxHR: details.maxHRUsed,
+                        restingHR: details.restingHRUsed
                     )
                     HeartRateChart(
                         samples: details.hrSamples,
                         maxHR: details.maxHRUsed,
-                        domain: details.workoutStart...details.workoutEnd
+                        domain: details.workoutStart...details.workoutEnd,
+                        restingHR: details.restingHRUsed
                     )
                     .frame(height: 140)
                     maxHRFootnote
@@ -51,7 +53,15 @@ struct HeartRateCard: View {
     /// makes the zone labels interpretable even when their MHR preference
     /// disagrees with their intuition.
     private var maxHRFootnote: some View {
-        Text("Zones calculated against \(Int(details.maxHRUsed.rounded())) BPM max. Adjust in Settings → Max heart rate.")
+        let max = Int(details.maxHRUsed.rounded())
+        let rest = Int(details.restingHRUsed.rounded())
+        let body: String
+        if rest > 0 {
+            body = "Zones calculated using HRR / Karvonen — \(max) BPM max, \(rest) BPM rest. Matches Apple Watch."
+        } else {
+            body = "Zones calculated as % of \(max) BPM max. Set a resting HR in Settings → Heart rate zones to switch to Karvonen (matches Apple Watch)."
+        }
+        return Text(body)
             .font(AppFont.ui(11, weight: .medium))
             .foregroundStyle(Color.textTertiary)
     }
@@ -105,6 +115,10 @@ struct HeartRateStatsRow: View {
 struct HeartRateZoneBar: View {
     let breakdown: ZoneBreakdown
     let maxHR: Double
+    /// Resting HR for HRR/Karvonen zone boundary math. 0 = unset, falls
+    /// back to %-of-max so the displayed BPM ranges match `breakdown`'s
+    /// classification rule for legacy users.
+    var restingHR: Double = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x3) {
@@ -153,7 +167,7 @@ struct HeartRateZoneBar: View {
     private func zoneRow(_ zone: HeartRateZone) -> some View {
         let seconds = breakdown.seconds(in: zone)
         let fraction = breakdown.fraction(in: zone)
-        let range = zone.bpmRange(maxHR: maxHR)
+        let range = zone.bpmRange(maxHR: maxHR, restingHR: restingHR)
         return HStack(spacing: Space.x3) {
             Circle()
                 .fill(zone.color)
@@ -206,11 +220,23 @@ struct HeartRateChart: View {
     let samples: [HealthKitService.HRSample]
     let maxHR: Double
     let domain: ClosedRange<Date>
+    /// Resting HR for HRR/Karvonen zone band math. 0 = unset, falls back
+    /// to %-of-max so the chart's banded background matches the zone bar
+    /// (which uses the same fallback) for legacy users.
+    var restingHR: Double = 0
 
-    /// Sensible Y-axis range: from 40 below Z1's floor to 10 above MHR.
+    /// Convert a zone fraction (0…1) to a BPM y-value. HRR formula when
+    /// restingHR > 0, %-of-max when 0 — same rule the classifier uses, so
+    /// the bands and the line agree.
+    private func bpm(at fraction: Double) -> Double {
+        let reserve = max(0, maxHR - restingHR)
+        return reserve > 0 ? restingHR + fraction * reserve : fraction * maxHR
+    }
+
+    /// Sensible Y-axis range: from a bit below Z1's floor to 10 above MHR.
     /// Locks it so the chart height is comparable across workouts.
     private var yRange: ClosedRange<Double> {
-        let low = max(40.0, (HeartRateZone.z1.minPercent * maxHR) - 10)
+        let low = max(40.0, bpm(at: HeartRateZone.z1.minPercent) - 10)
         let high = maxHR + 10
         return low...high
     }
@@ -223,8 +249,8 @@ struct HeartRateChart: View {
                 RectangleMark(
                     xStart: .value("Start", domain.lowerBound),
                     xEnd: .value("End", domain.upperBound),
-                    yStart: .value("Min", zone.minPercent * maxHR),
-                    yEnd: .value("Max", zone.maxPercent * maxHR)
+                    yStart: .value("Min", bpm(at: zone.minPercent)),
+                    yEnd: .value("Max", bpm(at: zone.maxPercent))
                 )
                 .foregroundStyle(zone.color.opacity(0.12))
             }

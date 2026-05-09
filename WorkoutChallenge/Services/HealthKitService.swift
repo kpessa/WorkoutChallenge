@@ -103,7 +103,11 @@ final class HealthKitService: ObservableObject {
             // Watch during sleep/breathe sessions. Used by the Fitness
             // Trend card as a "is physiology changing" recovery signal,
             // distinct from the capacity signal that VO₂Max provides.
-            .heartRateVariabilitySDNN
+            .heartRateVariabilitySDNN,
+            // Resting HR — Apple's nightly auto-computed estimate. Drives
+            // the HRR/Karvonen zone math so the app's zone classifier
+            // matches the Watch's. Updated daily by the Watch.
+            .restingHeartRate
         ]
         for id in quantityIDs {
             if let t = HKObjectType.quantityType(forIdentifier: id) {
@@ -338,6 +342,19 @@ final class HealthKitService: ObservableObject {
             )
             context.insert(model)
             byMatchKey[key] = model
+
+            // Best-effort Reclaim completion sync. Off-schedule dates,
+            // past challenges, or missing mappings silently no-op inside
+            // the service. We intentionally fire one task per workout
+            // rather than batching — simpler to reason about, and a
+            // typical import is a handful of rows.
+            let importedDate = s.startDate
+            Task { @MainActor in
+                await ReclaimSyncService.completeTaskForWorkout(
+                    date: importedDate,
+                    modelContext: context
+                )
+            }
         }
     }
 
@@ -458,6 +475,38 @@ final class HealthKitService: ObservableObject {
         let unit = HKUnit.count().unitDivided(by: .minute())
         return samples.map { s in
             HRSample(date: s.startDate, bpm: s.quantity.doubleValue(for: unit))
+        }
+    }
+
+    /// Average heart rate (BPM) across the workout window — computed via
+    /// `HKStatisticsQuery` so we never load the full sample array into
+    /// memory. Useful when a caller only needs the aggregate (e.g. HR-drift
+    /// baseline computation across multiple prior workouts), where loading
+    /// thousands of `HRSample` structs would push a sheet over iOS's
+    /// memory-eviction threshold.
+    ///
+    /// Returns nil when there are no HR samples in the workout window.
+    func fetchAverageHeartRate(for workout: HKWorkout) async -> Double? {
+        guard isAvailable,
+              let hrType = HKObjectType.quantityType(forIdentifier: .heartRate)
+        else { return nil }
+
+        let predicate = HKQuery.predicateForSamples(
+            withStart: workout.startDate,
+            end: workout.endDate,
+            options: [.strictStartDate, .strictEndDate]
+        )
+
+        return await withCheckedContinuation { cont in
+            let q = HKStatisticsQuery(
+                quantityType: hrType,
+                quantitySamplePredicate: predicate,
+                options: .discreteAverage
+            ) { _, stats, _ in
+                let unit = HKUnit.count().unitDivided(by: .minute())
+                cont.resume(returning: stats?.averageQuantity()?.doubleValue(for: unit))
+            }
+            store.execute(q)
         }
     }
 
@@ -660,6 +709,37 @@ final class HealthKitService: ObservableObject {
         }
     }
 
+    /// Most recent resting-HR reading from Apple Health, in BPM. Apple's
+    /// Watch posts a daily auto-computed estimate; we read the latest one
+    /// (and its date) so the Settings UI can show "refreshed N days ago"
+    /// while the zone math just consumes the BPM. Returns nil if HK isn't
+    /// available, isn't authorized, or has never recorded a sample.
+    func fetchLatestRestingHR() async -> (bpm: Double, date: Date)? {
+        guard isAvailable,
+              let type = HKObjectType.quantityType(forIdentifier: .restingHeartRate)
+        else { return nil }
+
+        let unit = HKUnit.count().unitDivided(by: .minute())
+        let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
+
+        return await withCheckedContinuation { cont in
+            let q = HKSampleQuery(
+                sampleType: type,
+                predicate: nil,
+                limit: 1,
+                sortDescriptors: [sort]
+            ) { _, samples, _ in
+                guard let sample = (samples as? [HKQuantitySample])?.first else {
+                    cont.resume(returning: nil)
+                    return
+                }
+                let bpm = sample.quantity.doubleValue(for: unit)
+                cont.resume(returning: (bpm, sample.startDate))
+            }
+            store.execute(q)
+        }
+    }
+
     /// A single VO₂Max sample: date the estimate was recorded and the
     /// value in mL/(kg·min). Apple's Fitness app uses the same unit.
     struct VO2MaxSample: Hashable, Identifiable {
@@ -761,6 +841,60 @@ final class HealthKitService: ObservableObject {
                 let mapped: [HRVSample] = (samples ?? []).compactMap { s in
                     guard let q = s as? HKQuantitySample else { return nil }
                     return HRVSample(
+                        date: q.startDate,
+                        value: q.quantity.doubleValue(for: unit)
+                    )
+                }
+                cont.resume(returning: mapped)
+            }
+            store.execute(q)
+        }
+    }
+
+    /// A single resting-HR sample: the date Apple posted the daily auto-
+    /// computed estimate and the BPM value. Apple's Watch posts roughly
+    /// one sample per day, so even a 60-day window yields ~60 points —
+    /// dense enough to plot a real trend (unlike VO₂Max, which is sparse).
+    struct RestingHRSample: Hashable, Identifiable {
+        let date: Date
+        let value: Double   // BPM
+        var id: Date { date }
+    }
+
+    /// Fetch resting-HR samples over the given window, ordered ascending.
+    /// Used by the Physiology card to plot the long-window adaptation
+    /// trend (resting HR drifting down = aerobic engine improving). The
+    /// `fetchLatestRestingHR()` helper above is for the single-value
+    /// "current resting HR" the zone math needs; this one is for charts.
+    ///
+    /// Returns an empty array when HealthKit is unavailable, the user
+    /// hasn't granted read access, or no samples exist in the window.
+    func fetchRestingHRSeries(
+        since: Date,
+        until: Date = Date()
+    ) async -> [RestingHRSample] {
+        guard isAvailable,
+              let type = HKObjectType.quantityType(forIdentifier: .restingHeartRate)
+        else { return [] }
+
+        let predicate = HKQuery.predicateForSamples(
+            withStart: since,
+            end: until,
+            options: [.strictStartDate]
+        )
+        let unit = HKUnit.count().unitDivided(by: .minute())
+        let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+
+        return await withCheckedContinuation { cont in
+            let q = HKSampleQuery(
+                sampleType: type,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [sort]
+            ) { _, samples, _ in
+                let mapped: [RestingHRSample] = (samples ?? []).compactMap { s in
+                    guard let q = s as? HKQuantitySample else { return nil }
+                    return RestingHRSample(
                         date: q.startDate,
                         value: q.quantity.doubleValue(for: unit)
                     )

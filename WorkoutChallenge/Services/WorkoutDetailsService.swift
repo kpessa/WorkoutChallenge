@@ -13,6 +13,7 @@
 //
 
 import Foundation
+import Combine
 import CoreLocation
 import HealthKit
 import Observation
@@ -43,6 +44,12 @@ struct WorkoutDetails {
 
     /// The MHR used to build `zones`. Shown in UI as context ("% of 185 bpm").
     var maxHRUsed: Double
+
+    /// The resting HR used to build `zones`. 0 means the breakdown was
+    /// computed with %-of-max math (legacy, when the user hasn't set
+    /// resting HR yet); >0 means HRR/Karvonen was used. UI distinguishes
+    /// the two in the footnote so users know which model is in play.
+    var restingHRUsed: Double = 0
 
     var hasAny: Bool {
         !hrSamples.isEmpty
@@ -96,7 +103,8 @@ final class WorkoutDetailsLoader {
     func load(
         workout: WorkoutModel,
         healthKit: HealthKitService,
-        maxHR: Double
+        maxHR: Double,
+        restingHR: Double = 0
     ) {
         task?.cancel()
 
@@ -127,7 +135,8 @@ final class WorkoutDetailsLoader {
                 self.state = .loaded(WorkoutDetails(
                     workoutStart: workoutStart,
                     workoutEnd: workoutEnd,
-                    maxHRUsed: maxHR
+                    maxHRUsed: maxHR,
+                    restingHRUsed: restingHR
                 ))
                 return
             }
@@ -152,6 +161,7 @@ final class WorkoutDetailsLoader {
             let zones = HeartRateAnalysis.breakdown(
                 samples: samples,
                 maxHR: maxHR,
+                restingHR: restingHR,
                 workoutEnd: workoutEnd
             )
 
@@ -165,7 +175,8 @@ final class WorkoutDetailsLoader {
                 routeLocations: locs,
                 workoutStart: workoutStart,
                 workoutEnd: workoutEnd,
-                maxHRUsed: maxHR
+                maxHRUsed: maxHR,
+                restingHRUsed: restingHR
             )
 
             self.state = .loaded(details)
