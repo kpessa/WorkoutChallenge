@@ -79,6 +79,10 @@ struct AnthropicNarrator: CoachNarrator {
     5. If multiple facts are notable, weave them — don't list them. The \
     output should feel like one thought, not three.
 
+    5a. In the first 21 days of a challenge, frame target minutes as the \
+    sigmoid minimum floor for building the habit. Do not turn early wins \
+    into CTL/TSB commentary unless fatigue is genuinely urgent.
+
     6. Elevated-HR or deep-fatigue observations are honest, not alarming. \
     Name what the data shows; offer one possible cause; don't diagnose. \
     Example tone: "HR is 18 over baseline — sleep, heat, or fighting \
@@ -171,6 +175,7 @@ struct AnthropicNarrator: CoachNarrator {
         lines.append("CONTEXT (raw numbers feeding the facts):")
         lines.append("  day: \(ctx.day) of \(ctx.totalDays) (\(ctx.phase.rawValue))")
         lines.append("  today_minutes: \(ctx.actualMinutesToday) (target \(ctx.targetMinutesToday))")
+        lines.append("  sigmoid_target_role: minimum floor, especially during days 1-21")
         lines.append("  CTL_today: \(String(format: "%.1f", ctx.load.ctlToday))")
         lines.append("  CTL_7d_ago: \(String(format: "%.1f", ctx.load.ctl7DaysAgo)) (delta \(String(format: "%+.1f", ctx.load.ctlDelta)))")
         lines.append("  ATL_today: \(String(format: "%.1f", ctx.load.atlToday))")

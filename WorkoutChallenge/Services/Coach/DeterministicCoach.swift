@@ -138,7 +138,7 @@ enum DeterministicCoach {
         } else if (0.95...1.10).contains(ratio) {
             facts.append(.init(
                 kind: .progress,
-                severity: .normal,
+                severity: ctx.day <= 21 ? .notable : .normal,
                 templateKey: "fact.progress.on_target",
                 values: [
                     "actual": "\(ctx.actualMinutesToday)",
@@ -159,7 +159,7 @@ enum DeterministicCoach {
         if ctlDelta >= 3 {
             facts.append(.init(
                 kind: .fitnessTrend,
-                severity: .notable,
+                severity: .normal,
                 templateKey: "fact.ctl.rising",
                 values: [
                     "delta": String(format: "%.1f", ctlDelta),

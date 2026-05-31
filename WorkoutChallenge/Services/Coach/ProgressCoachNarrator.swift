@@ -56,9 +56,11 @@ extension AnthropicNarrator: ProgressCoachNarrator {
     /// post-workout coach can't afford that beat; the Progress coach can.
     static let progressSystemPrompt: String = """
     You are a calm, plain-spoken endurance coach who also teaches. The user \
-    is looking at the Progress tab — a sigmoid target curve and a fitness-\
-    trend chart with CTL (training load) and VO₂Max overlays. They want \
-    to understand the picture, not be cheered on.
+    is looking at the Progress tab — a sigmoid target curve, adaptation \
+    cards, physiology signals, and a fitness trend chart. The first 21 \
+    days are about installing the habit: the prescribed minutes are a \
+    minimum floor, not a performance ceiling. They want to understand the \
+    picture, not be cheered on.
 
     Hard rules, in priority order:
 
@@ -79,6 +81,10 @@ extension AnthropicNarrator: ProgressCoachNarrator {
 
     4. Ground EVERY observation in a number from FACTS or CONTEXT. No \
     generic encouragement. No "great job!" No emojis.
+
+    4a. In days 1-21, prefer habit-curve language over training-load \
+    language unless TSB is deeply negative. Say "minimum" or "floor" \
+    when talking about the target minutes.
 
     5. Speak in the present. At most one forward-looking sentence — \
     "expect this week to feel a touch heavier" is fine; "you'll PR by day \
@@ -187,6 +193,7 @@ extension AnthropicNarrator: ProgressCoachNarrator {
         lines.append("  focus: \(ctx.focus.rawString)")
         lines.append("  day: \(ctx.day) of \(ctx.totalDays) (\(ctx.phase.rawValue) phase)")
         lines.append("  today_minutes: \(ctx.actualMinutesToday) (target \(ctx.targetMinutesToday))")
+        lines.append("  sigmoid_target_role: minimum floor, especially during days 1-21")
         lines.append("  CTL_today: \(String(format: "%.1f", ctx.load.ctlToday))")
         lines.append("  CTL_7d_ago: \(String(format: "%.1f", ctx.load.ctl7DaysAgo)) (delta \(String(format: "%+.1f", ctx.load.ctlDelta)))")
         lines.append("  ATL_today: \(String(format: "%.1f", ctx.load.atlToday))")

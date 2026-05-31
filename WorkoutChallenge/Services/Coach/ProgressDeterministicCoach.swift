@@ -68,26 +68,20 @@ enum ProgressDeterministicCoach {
             return .behindPace
         }
 
-        // 5. Fitness rising. CTL +3 over the trailing 7 days = roughly
-        //    a sustained extra Z2 hour per week. Worth recognizing.
-        if ctx.load.ctlDelta >= 3 {
-            return .fitnessRising
-        }
-
-        // 6. Fitness falling. Same magnitude in the other direction.
-        //    Less notable than rising on the Progress surface (the user
-        //    is already probably feeling it), but worth one sentence.
-        if ctx.load.ctlDelta <= -3 {
-            return .fitnessFalling
-        }
-
-        // 7. Early-phase streak forming. The phase guard is intentional —
+        // 5. Early-phase streak forming. The phase guard is intentional —
         //    a 5-day streak in week 1 is huge; in week 12 it's the floor.
         if ctx.phase == .early, ctx.adherence.currentStreakDays >= 5 {
             return .streakLockingIn
         }
 
-        // 8. VO₂Max moving. Apple posts these every 1–2 weeks, so by
+        // 6. First 21 days: keep the coach anchored to the sigmoid floor.
+        //    The app's early job is habit installation; the minimum
+        //    minutes are the win, not CTL optimization.
+        if ctx.day <= 21, ctx.actualMinutesToday >= ctx.targetMinutesToday {
+            return .onTrack
+        }
+
+        // 7. VO₂Max moving. Apple posts these every 1–2 weeks, so by
         //    mid-arc the user typically has 4–8 samples. A ±1.5 mL/(kg·min)
         //    delta over the window is meaningful at the noise floor.
         if let vo2 = ctx.vo2Max,
@@ -96,13 +90,24 @@ enum ProgressDeterministicCoach {
             return .vo2MaxMoving
         }
 
-        // 9. HRV shift. Larger absolute threshold (8 ms) because HRV is
+        // 8. HRV shift. Larger absolute threshold (8 ms) because HRV is
         //    noisier than VO₂Max at the day-to-day scale. Sample-count
         //    guard same idea.
         if let hrv = ctx.hrv,
            hrv.sampleCount >= 3,
            abs(hrv.delta) >= 8 {
             return .hrvShift
+        }
+
+        // 9. Fitness rising/falling. CTL matters, but it should not crowd
+        //    out the app's core idea: sigmoid minimums first, physiology
+        //    signals second, load math third unless recovery is urgent.
+        if ctx.load.ctlDelta >= 4 {
+            return .fitnessRising
+        }
+
+        if ctx.load.ctlDelta <= -4 {
+            return .fitnessFalling
         }
 
         // 10. On-track when nothing else stands out. This produces a
