@@ -176,6 +176,13 @@ struct AdaptationsCard: View {
     @ViewBuilder
     private func expandedBody(progress p: AdaptationProgress) -> some View {
         VStack(alignment: .leading, spacing: Space.x3) {
+            // Animated explainer — currently only the stroke-volume row has
+            // one. Driven by the row's dose fraction; falls back to a native
+            // SwiftUI heart until the Rive asset is bundled.
+            if p.adaptation == .strokeVolume {
+                StrokeVolumeAnimationView(doseFraction: p.doseFraction)
+            }
+
             // Mechanism — the textbook explanation.
             VStack(alignment: .leading, spacing: Space.x1) {
                 Text("MECHANISM")
