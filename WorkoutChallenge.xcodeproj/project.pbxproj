@@ -6,8 +6,19 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		C0D3A0092F9A000100000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A9E742C72F942FEA004F3AC6 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A9E742CE2F942FEA004F3AC6;
+			remoteInfo = WorkoutChallenge;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		A9E742CF2F942FEA004F3AC6 /* WorkoutChallenge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WorkoutChallenge.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C0D3A0012F9A000100000001 /* WorkoutChallengeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WorkoutChallengeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -29,10 +40,22 @@
 			path = WorkoutChallenge;
 			sourceTree = "<group>";
 		};
+		C0D3A0022F9A000100000001 /* WorkoutChallengeTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = WorkoutChallengeTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		A9E742CC2F942FEA004F3AC6 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C0D3A0032F9A000100000001 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -46,6 +69,7 @@
 			isa = PBXGroup;
 			children = (
 				A9E742D12F942FEA004F3AC6 /* WorkoutChallenge */,
+				C0D3A0022F9A000100000001 /* WorkoutChallengeTests */,
 				A9E742D02F942FEA004F3AC6 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -54,6 +78,7 @@
 			isa = PBXGroup;
 			children = (
 				A9E742CF2F942FEA004F3AC6 /* WorkoutChallenge.app */,
+				C0D3A0012F9A000100000001 /* WorkoutChallengeTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -83,6 +108,29 @@
 			productReference = A9E742CF2F942FEA004F3AC6 /* WorkoutChallenge.app */;
 			productType = "com.apple.product-type.application";
 		};
+		C0D3A0042F9A000100000001 /* WorkoutChallengeTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C0D3A0052F9A000100000001 /* Build configuration list for PBXNativeTarget "WorkoutChallengeTests" */;
+			buildPhases = (
+				C0D3A0062F9A000100000001 /* Sources */,
+				C0D3A0032F9A000100000001 /* Frameworks */,
+				C0D3A0072F9A000100000001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				C0D3A0082F9A000100000001 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				C0D3A0022F9A000100000001 /* WorkoutChallengeTests */,
+			);
+			name = WorkoutChallengeTests;
+			packageProductDependencies = (
+			);
+			productName = WorkoutChallengeTests;
+			productReference = C0D3A0012F9A000100000001 /* WorkoutChallengeTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -95,6 +143,10 @@
 				TargetAttributes = {
 					A9E742CE2F942FEA004F3AC6 = {
 						CreatedOnToolsVersion = 26.2;
+					};
+					C0D3A0042F9A000100000001 = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = A9E742CE2F942FEA004F3AC6;
 					};
 				};
 			};
@@ -114,12 +166,20 @@
 			projectRoot = "";
 			targets = (
 				A9E742CE2F942FEA004F3AC6 /* WorkoutChallenge */,
+				C0D3A0042F9A000100000001 /* WorkoutChallengeTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		A9E742CD2F942FEA004F3AC6 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C0D3A0072F9A000100000001 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -136,7 +196,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C0D3A0062F9A000100000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		C0D3A0082F9A000100000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A9E742CE2F942FEA004F3AC6 /* WorkoutChallenge */;
+			targetProxy = C0D3A0092F9A000100000001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		A9E742DE2F942FEB004F3AC6 /* Debug */ = {
@@ -340,6 +415,56 @@
 			};
 			name = Release;
 		};
+		C0D3A00A2F9A000100000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = ANCN2445Q9;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = kpessa.WorkoutChallengeKPTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/WorkoutChallenge.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/WorkoutChallenge";
+			};
+			name = Debug;
+		};
+		C0D3A00B2F9A000100000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = ANCN2445Q9;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = kpessa.WorkoutChallengeKPTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/WorkoutChallenge.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/WorkoutChallenge";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -357,6 +482,15 @@
 			buildConfigurations = (
 				A9E742DE2F942FEB004F3AC6 /* Debug */,
 				A9E742DF2F942FEB004F3AC6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C0D3A0052F9A000100000001 /* Build configuration list for PBXNativeTarget "WorkoutChallengeTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C0D3A00A2F9A000100000001 /* Debug */,
+				C0D3A00B2F9A000100000001 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
