@@ -159,6 +159,32 @@ final class CoachFeedbackLoader {
                     context: context,
                     audioURL: url
                 )
+
+                // Text is synced through SwiftData, but audio lives in
+                // Caches and can be evicted or may not have existed when
+                // the text was generated. If the user now has voice
+                // configured, quietly refill the mp3 so reopening a
+                // workout doesn't leave the transcript stranded without
+                // its listen button.
+                if url == nil,
+                   !voiceID.isEmpty,
+                   CoachKeychain.hasToken(for: .elevenLabs) {
+                    let regeneratedURL = await self.synthesizeAndCache(
+                        text: cachedRow.body,
+                        voiceID: voiceID,
+                        feedbackRow: cachedRow,
+                        modelContext: modelContext
+                    )
+                    if Task.isCancelled { return }
+                    if let regeneratedURL {
+                        self.state = .ready(
+                            facts: facts,
+                            body: cachedRow.body,
+                            context: context,
+                            audioURL: regeneratedURL
+                        )
+                    }
+                }
                 return
             }
 

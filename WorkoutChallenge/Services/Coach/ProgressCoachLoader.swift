@@ -140,6 +140,25 @@ final class ProgressCoachLoader {
                     context: context,
                     audioURL: url
                 )
+                if url == nil,
+                   !voiceID.isEmpty,
+                   CoachKeychain.hasToken(for: .elevenLabs) {
+                    let regeneratedURL = await self.synthesizeAndCache(
+                        text: cachedRow.body,
+                        voiceID: voiceID,
+                        row: cachedRow,
+                        modelContext: modelContext
+                    )
+                    if Task.isCancelled { return }
+                    if let regeneratedURL {
+                        self.state = .ready(
+                            facts: facts,
+                            body: cachedRow.body,
+                            context: context,
+                            audioURL: regeneratedURL
+                        )
+                    }
+                }
                 return
             }
 
