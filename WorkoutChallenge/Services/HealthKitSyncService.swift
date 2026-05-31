@@ -60,6 +60,8 @@ final class HealthKitSyncService: ObservableObject {
         var added: Int
         var skipped: Int
         var failed: Int
+        var daysMerged: Int = 0
+        var daysFailed: Int = 0
     }
 
     // MARK: - Server probe
@@ -193,12 +195,43 @@ final class HealthKitSyncService: ObservableObject {
         backfillProgress = BackfillProgress(processed: 0, total: workouts.count,
                                             added: 0, skipped: 0, failed: 0)
 
+        let dailySamples = await fetchDailySamples(
+            since: Date(timeIntervalSince1970: 0),
+            until: Date()
+        )
+
         // Chunk so a single push doesn't dump thousands of workouts into one
         // request body. 100/chunk is conservative; tune up later if fine.
         let chunkSize = 100
         var added = 0
         var skipped = 0
         var failed = 0
+        var daysMerged = 0
+        var daysFailed = 0
+
+        if workouts.isEmpty, !dailySamples.isEmpty {
+            let bulk = BackfillPayloadDTO(workouts: [], days: dailySamples)
+            let endpoint = baseURL.appendingPathComponent("vault/healthkit/backfill")
+            do {
+                let response = try await postJSON(bulk, to: endpoint, token: token)
+                if let parsed = try? JSONDecoder().decode(BackfillResponseDTO.self, from: response) {
+                    daysMerged += parsed.daysMerged
+                    daysFailed += parsed.daysFailed
+                }
+            } catch {
+                daysFailed += dailySamples.count
+                lastError = "Daily samples backfill failed: \(error)"
+            }
+            backfillProgress = BackfillProgress(
+                processed: 0,
+                total: 0,
+                added: 0,
+                skipped: 0,
+                failed: 0,
+                daysMerged: daysMerged,
+                daysFailed: daysFailed
+            )
+        }
 
         for chunkStart in stride(from: 0, to: workouts.count, by: chunkSize) {
             let chunkEnd = min(chunkStart + chunkSize, workouts.count)
@@ -221,7 +254,8 @@ final class HealthKitSyncService: ObservableObject {
                 return collected
             }
 
-            let bulk = BackfillPayloadDTO(workouts: payloads, days: [])
+            let daysForChunk = chunkStart == 0 ? dailySamples : []
+            let bulk = BackfillPayloadDTO(workouts: payloads, days: daysForChunk)
             let endpoint = baseURL.appendingPathComponent("vault/healthkit/backfill")
 
             do {
@@ -230,21 +264,88 @@ final class HealthKitSyncService: ObservableObject {
                     added += parsed.workoutsAdded
                     skipped += parsed.workoutsSkipped
                     failed += parsed.workoutsFailed
+                    daysMerged += parsed.daysMerged
+                    daysFailed += parsed.daysFailed
                 }
             } catch {
                 failed += chunk.count
+                daysFailed += daysForChunk.count
                 lastError = "Chunk \(chunkStart)-\(chunkEnd) failed: \(error)"
             }
 
             backfillProgress = BackfillProgress(
                 processed: chunkEnd,
                 total: workouts.count,
-                added: added, skipped: skipped, failed: failed
+                added: added, skipped: skipped, failed: failed,
+                daysMerged: daysMerged, daysFailed: daysFailed
             )
         }
 
         lastSyncAt = Date()
         return backfillProgress!
+    }
+
+    /// Builds the daily HealthKit sample payload that accompanies a full
+    /// VaultBridge backfill. Workouts remain the primary sync unit, while
+    /// these samples capture slow-moving physiology and scale readings the
+    /// app cares about outside individual workouts.
+    private func fetchDailySamples(
+        since startDate: Date,
+        until endDate: Date
+    ) async -> [DailySamplesPayloadDTO] {
+        async let bodyMass = healthKit.fetchBodyMassSeries(since: startDate, until: endDate)
+        async let restingHR = healthKit.fetchRestingHRSeries(since: startDate, until: endDate)
+        async let hrv = healthKit.fetchHRVSeries(since: startDate, until: endDate)
+        async let vo2 = healthKit.fetchVO2MaxSeries(since: startDate, until: endDate)
+
+        let (massSamples, restingSamples, hrvSamples, vo2Samples) = await (
+            bodyMass, restingHR, hrv, vo2
+        )
+
+        var grouped: [String: [DailySampleDTO]] = [:]
+        func append(kind: String, value: Double, unit: String, start: Date, end: Date? = nil) {
+            grouped[Self.dayKey(for: start), default: []].append(
+                DailySampleDTO(
+                    kind: kind,
+                    value: value,
+                    unit: unit,
+                    start: start,
+                    end: end
+                )
+            )
+        }
+
+        for sample in massSamples {
+            append(kind: "HKQuantityTypeIdentifierBodyMass", value: sample.value, unit: "kg", start: sample.date)
+        }
+        for sample in restingSamples {
+            append(kind: "HKQuantityTypeIdentifierRestingHeartRate", value: sample.value, unit: "bpm", start: sample.date)
+        }
+        for sample in hrvSamples {
+            append(kind: "HKQuantityTypeIdentifierHeartRateVariabilitySDNN", value: sample.value, unit: "ms", start: sample.date)
+        }
+        for sample in vo2Samples {
+            append(kind: "HKQuantityTypeIdentifierVO2Max", value: sample.value, unit: "ml/kg/min", start: sample.date)
+        }
+
+        return grouped.keys.sorted().map { day in
+            DailySamplesPayloadDTO(
+                date: day,
+                samples: grouped[day, default: []].sorted { $0.start < $1.start }
+            )
+        }
+    }
+
+    private static func dayKey(for date: Date) -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+        let comps = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(
+            format: "%04d-%02d-%02d",
+            comps.year ?? 0,
+            comps.month ?? 0,
+            comps.day ?? 0
+        )
     }
 
     // MARK: - HK → Payload conversion

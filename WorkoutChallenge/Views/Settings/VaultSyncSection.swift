@@ -87,9 +87,9 @@ struct VaultSyncSection: View {
             }
 
             if let progress = sync.backfillProgress {
-                Text("Backfill: \(progress.processed)/\(progress.total) — added \(progress.added), skipped \(progress.skipped), failed \(progress.failed)")
+                Text("Backfill: \(progress.processed)/\(progress.total) workouts — added \(progress.added), skipped \(progress.skipped), failed \(progress.failed); days \(progress.daysMerged) merged, \(progress.daysFailed) failed")
                     .font(.caption.monospaced())
-                    .foregroundStyle(progress.failed > 0 ? .orange : .secondary)
+                    .foregroundStyle((progress.failed + progress.daysFailed) > 0 ? .orange : .secondary)
             }
 
             if !statusLine.isEmpty {
@@ -163,7 +163,7 @@ struct VaultSyncSection: View {
         verifyResult = ""
         do {
             let progress = try await sync.backfillAllWorkouts()
-            verifyResult = "✓ Backfill done: \(progress.processed) processed, \(progress.added) added, \(progress.skipped) skipped, \(progress.failed) failed"
+            verifyResult = "✓ Backfill done: \(progress.processed) workouts processed; days \(progress.daysMerged) merged, \(progress.daysFailed) failed"
         } catch {
             verifyResult = "✗ Backfill failed: \(error.localizedDescription)"
         }

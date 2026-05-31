@@ -99,6 +99,10 @@ final class HealthKitService: ObservableObject {
             // Progress tab's Fitness Trend card as the independent
             // aerobic-capacity signal overlaid on CTL.
             .vo2Max,
+            // Body mass — needed for smart scales that write weight into
+            // Apple Health. VaultBridge can then mirror the daily sample
+            // stream into raw/healthkit alongside workouts.
+            .bodyMass,
             // Heart-rate variability (SDNN, ms) — recorded mostly by the
             // Watch during sleep/breathe sessions. Used by the Fitness
             // Trend card as a "is physiology changing" recovery signal,
@@ -895,6 +899,53 @@ final class HealthKitService: ObservableObject {
                 let mapped: [RestingHRSample] = (samples ?? []).compactMap { s in
                     guard let q = s as? HKQuantitySample else { return nil }
                     return RestingHRSample(
+                        date: q.startDate,
+                        value: q.quantity.doubleValue(for: unit)
+                    )
+                }
+                cont.resume(returning: mapped)
+            }
+            store.execute(q)
+        }
+    }
+
+    /// A single body-mass sample from Apple Health, normalized to kg.
+    /// Smart scales usually write this quantity directly through HealthKit.
+    struct BodyMassSample: Hashable, Identifiable {
+        let date: Date
+        let value: Double   // kilograms
+        var id: Date { date }
+    }
+
+    /// Fetch body-mass samples over the given window, ordered ascending.
+    /// Returns an empty array when no scale/manual weight samples exist or
+    /// HealthKit access is unavailable.
+    func fetchBodyMassSeries(
+        since: Date,
+        until: Date = Date()
+    ) async -> [BodyMassSample] {
+        guard isAvailable,
+              let type = HKObjectType.quantityType(forIdentifier: .bodyMass)
+        else { return [] }
+
+        let predicate = HKQuery.predicateForSamples(
+            withStart: since,
+            end: until,
+            options: [.strictStartDate]
+        )
+        let unit = HKUnit.gramUnit(with: .kilo)
+        let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+
+        return await withCheckedContinuation { cont in
+            let q = HKSampleQuery(
+                sampleType: type,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [sort]
+            ) { _, samples, _ in
+                let mapped: [BodyMassSample] = (samples ?? []).compactMap { s in
+                    guard let q = s as? HKQuantitySample else { return nil }
+                    return BodyMassSample(
                         date: q.startDate,
                         value: q.quantity.doubleValue(for: unit)
                     )
