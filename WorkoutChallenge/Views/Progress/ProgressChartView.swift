@@ -76,14 +76,24 @@ struct ProgressChartView: View {
                         state: coachLoader.state,
                         audioPlayer: coachAudioPlayer
                     )
+                    // Anchor the trend window to TODAY, not the Day-90
+                    // challenge end. CTL/ATL series fill zero-load for
+                    // every day in the window, so running to Day 90 lets
+                    // the curves decay into an empty future — making the
+                    // Form tile read "fresh" (e.g. +13) while the Coach,
+                    // which anchors to today, correctly reads "fatigued"
+                    // (TSB −33). Clamp the end to the current day so both
+                    // sections describe the same moment.
+                    let challengeEnd = config.startDate.addingDays(89)
+                    let trendEnd = min(Date().startOfDay, challengeEnd)
                     FitnessCard(
                         workouts: workouts,
                         startDate: config.startDate,
-                        endDate: config.startDate.addingDays(89)
+                        endDate: trendEnd
                     )
                     PhysiologyCard(
                         startDate: config.startDate,
-                        endDate: config.startDate.addingDays(89)
+                        endDate: trendEnd
                     )
                     AdaptationsCard(
                         workouts: workouts,

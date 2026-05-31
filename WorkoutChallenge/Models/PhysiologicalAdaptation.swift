@@ -61,7 +61,7 @@ enum PhysiologicalAdaptation: String, CaseIterable, Identifiable {
     var mechanism: String {
         switch self {
         case .neural:
-            return "The first few weeks of strength training, gains come almost entirely from the nervous system — not the muscle. Motor-unit recruitment improves (you fire more fibers per contraction), rate coding rises (each motor neuron fires faster), and intermuscular coordination tightens. Myelination of the motor pathways probably contributes too. This is why beginners get stronger fast on the same body, and why detraining for a week barely affects strength."
+            return "For roughly the first three to five weeks, most of your strength gain is neural, not muscular — the classic Moritani & deVries finding. Motor-unit recruitment improves (you fire more fibers per contraction), rate coding rises (each motor neuron fires faster), and intermuscular coordination tightens. With a novel, skill-heavy activity, plain motor learning adds to it. Measurable muscle growth comes later — and some of the earliest size change is fluid, not fiber. It's why beginners get stronger fast on the same body, and why a week off barely touches strength."
         case .mitochondrial:
             return "Sustained aerobic work — especially Z2 — triggers mitochondrial biogenesis via the PGC-1α pathway. Existing mitochondria divide; new ones get assembled. More mitochondria means more capacity to oxidize fat and pyruvate, raising the workload your body can sustain aerobically. This is the slow, steady adaptation that builds genuine endurance, and it's largely invisible in the first month — but compounds for years."
         case .strokeVolume:
@@ -135,16 +135,51 @@ enum AdaptationDriver {
         guard let name = typeName?.lowercased() else { return false }
         switch self {
         case .strength:
-            let kw = ["strength", "weight", "lift", "resistance",
-                      "barbell", "dumbbell", "bodyweight", "calisthenics",
-                      "powerlifting", "crossfit"]
-            return kw.contains(where: { name.contains($0) })
+            return AdaptationDriver.isStrengthName(name)
         case .aerobic:
-            let kw = ["run", "jog", "walk", "hike", "bike", "cycl",
-                      "swim", "row", "elliptical", "cardio", "treadmill",
-                      "climb", "stair", "spin"]
-            return kw.contains(where: { name.contains($0) })
+            // Aerobic is the DEFAULT bucket for any movement that isn't
+            // clearly strength or clearly non-cardio. Keyword lists are
+            // brittle — users name types freely ("Rollerblading", "Zone
+            // 2", "Peloton", "Outdoor Skate") and a fixed list will
+            // always miss something, silently dropping real training
+            // from the adaptation cards. So: a name that explicitly
+            // reads as cardio counts; otherwise anything that isn't
+            // strength or an explicit non-cardio activity (yoga, mobility,
+            // rest) also counts.
+            if Self.aerobicKeywords.contains(where: { name.contains($0) }) {
+                return true
+            }
+            if Self.isStrengthName(name) { return false }
+            if Self.nonCardioKeywords.contains(where: { name.contains($0) }) {
+                return false
+            }
+            return true
         }
+    }
+
+    /// Explicit cardio names — fast path, also documents intent.
+    private static let aerobicKeywords = [
+        "run", "jog", "walk", "hike", "bike", "cycl", "swim", "row",
+        "elliptical", "cardio", "treadmill", "climb", "stair", "spin",
+        "skate", "skating", "blade", "rollerblad", "inline", "ski",
+        "dance", "boxing", "kickbox", "jump rope", "jumprope", "hiit",
+        "interval", "soccer", "basketball", "tennis", "pickleball",
+        "paddle", "kayak", "sport"
+    ]
+
+    /// Names that should NOT count as aerobic stimulus even though they
+    /// aren't strength — low cardiovascular demand.
+    private static let nonCardioKeywords = [
+        "yoga", "stretch", "flexibility", "mobility", "pilates",
+        "meditat", "breath", "rest", "recovery", "cooldown", "warmup",
+        "warm up", "cool down"
+    ]
+
+    private static func isStrengthName(_ name: String) -> Bool {
+        let kw = ["strength", "weight", "lift", "resistance",
+                  "barbell", "dumbbell", "bodyweight", "calisthenics",
+                  "powerlifting", "crossfit"]
+        return kw.contains(where: { name.contains($0) })
     }
 }
 
