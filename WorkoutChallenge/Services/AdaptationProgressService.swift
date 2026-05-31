@@ -56,7 +56,7 @@ enum AdaptationProgressService {
         // user hasn't done any matching work yet, we use `startDate` so
         // the row still renders an "accumulating" state instead of NaN.
         let qualifying = workouts.filter {
-            adaptation.driver.matches(typeName: $0.workoutType?.name)
+            matches(workout: $0, driver: adaptation.driver)
         }
         let firstStimulusDate = qualifying.map(\.date).min() ?? startDate
         let daysSinceFirst = max(0, firstStimulusDate.daysUntil(now))
@@ -100,6 +100,25 @@ enum AdaptationProgressService {
             proxy: proxy,
             caption: caption
         )
+    }
+
+    /// Imported HealthKit rows often arrive before the user assigns a
+    /// workout type. Treat those unassigned imported sessions as aerobic
+    /// stimulus so the adaptation cards do not incorrectly show zero
+    /// mitochondrial/stroke-volume dose after a Watch-heavy week.
+    private static func matches(workout: WorkoutModel, driver: AdaptationDriver) -> Bool {
+        if driver.matches(typeName: workout.workoutType?.name) {
+            return true
+        }
+        guard workout.workoutType == nil, workout.healthKitUUID != nil else {
+            return false
+        }
+        switch driver {
+        case .aerobic:
+            return true
+        case .strength:
+            return false
+        }
     }
 
     // MARK: - Stage
