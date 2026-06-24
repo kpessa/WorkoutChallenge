@@ -50,3 +50,5 @@ Server/Package.resolved
 *.bak
 *.prevolt
 .trash/
+
+.claude/
